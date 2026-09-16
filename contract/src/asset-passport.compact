@@ -1,0 +1,438 @@
+// Asset Passport contract
+//
+// Provides a privacy-preserving on-chain record for vehicle asset provenance:
+// registration, ownership commitments, confidential credentials, credential
+// verification, provenance events, ownership transfer, and a committed
+// reference to an off-chain risk assessment.
+//
+// Design principles:
+//   - This contract is the sole source of truth for asset, ownership,
+//     credential, provenance, and risk-reference state.
+//   - Sensitive data (owner identity material, credential contents,
+//     inspection/service details, risk-analysis detail) is never written to
+//     the public ledger. Only commitments (hashes) and deliberately
+//     disclosed metadata are stored, using explicit disclose() calls.
+//   - Off-chain private data is supplied through witnesses, which run on the
+//     caller's machine and never leave it in raw form.
+//   - No off-chain analysis (including AI risk scoring) executes inside this
+//     contract. The contract only stores a committed reference to such
+//     analysis, submitted by an authorized party.
+
+pragma language_version >= 0.22;
+
+import CompactStandardLibrary;
+
+// ---------------------------------------------------------------------------
+// Types
+// ---------------------------------------------------------------------------
+
+export enum AssetStatus {
+  ACTIVE,
+  RETIRED
+}
+
+export enum CredentialStatus {
+  PENDING,
+  VERIFIED,
+  REVOKED
+}
+
+export struct AssetRecord {
+  assetCategory: Uint<8>;
+  registeredAt: Uint<64>;
+  ownerCommitment: Bytes<32>;
+  status: AssetStatus;
+}
+
+export struct CredentialRecord {
+  assetId: Bytes<32>;
+  credentialType: Uint<8>;
+  issuerCommitment: Bytes<32>;
+  credentialCommitment: Bytes<32>;
+  status: CredentialStatus;
+  addedAt: Uint<64>;
+}
+
+export struct ProvenanceRecord {
+  assetId: Bytes<32>;
+  eventType: Uint<8>;
+  eventCommitment: Bytes<32>;
+  recordedAt: Uint<64>;
+}
+
+export struct RiskRecord {
+  assetId: Bytes<32>;
+  riskCommitment: Bytes<32>;
+  riskTier: Uint<8>;
+  assessedAt: Uint<64>;
+}
+
+// ---------------------------------------------------------------------------
+// Public ledger state
+// ---------------------------------------------------------------------------
+
+// Public-key-style commitments (hash of a secret key held off-chain),
+// authorizing the two protocol-level roles used by this contract.
+export ledger admin: Bytes<32>;
+export ledger oracle: Bytes<32>;
+
+export ledger assetCount: Counter;
+
+export ledger assets: Map<Bytes<32>, AssetRecord>;
+
+export ledger credentials: Map<Bytes<32>, CredentialRecord>;
+export ledger credentialCountByAsset: Map<Bytes<32>, Uint<64>>;
+
+export ledger provenance: Map<Bytes<32>, ProvenanceRecord>;
+export ledger provenanceCountByAsset: Map<Bytes<32>, Uint<64>>;
+
+export ledger riskAssessments: Map<Bytes<32>, RiskRecord>;
+
+// ---------------------------------------------------------------------------
+// Witnesses (private, off-chain data - never written to the ledger directly)
+// ---------------------------------------------------------------------------
+
+// Returns the caller's private key controlling ownership of a given asset.
+witness ownerSecretKey(assetId: Bytes<32>): Bytes<32>;
+
+// Returns private material used to derive a confidential credential's
+// commitment (e.g. a hash of the credential document plus a random salt,
+// computed off-chain). The underlying credential content never appears here.
+witness credentialSecret(credentialId: Bytes<32>): Bytes<32>;
+
+// Returns private material used to derive a provenance event's commitment
+// (e.g. a hash of the private event record plus a random salt).
+witness provenanceSecret(eventId: Bytes<32>): Bytes<32>;
+
+// Returns the protocol administrator's private authorization key.
+witness adminSecretKey(): Bytes<32>;
+
+// Returns the risk oracle's private authorization key. The oracle role is
+// held by the party authorized to publish risk-assessment references
+// (typically the operator of the off-chain AI risk-analysis service); the
+// analysis itself never runs inside this contract.
+witness oracleSecretKey(): Bytes<32>;
+
+// ---------------------------------------------------------------------------
+// Internal commitment helpers
+// ---------------------------------------------------------------------------
+
+circuit ownerCommitment(assetId: Bytes<32>, secretKey: Bytes<32>): Bytes<32> {
+  return persistentHash<Vector<3, Bytes<32>>>([
+    pad(32, "avp:owner:v1:"),
+    assetId,
+    secretKey
+  ]);
+}
+
+circuit credentialCommitment(
+  assetId: Bytes<32>,
+  credentialId: Bytes<32>,
+  secret: Bytes<32>
+): Bytes<32> {
+  return persistentHash<Vector<4, Bytes<32>>>([
+    pad(32, "avp:credential:v1:"),
+    assetId,
+    credentialId,
+    secret
+  ]);
+}
+
+circuit provenanceCommitment(
+  assetId: Bytes<32>,
+  eventId: Bytes<32>,
+  secret: Bytes<32>
+): Bytes<32> {
+  return persistentHash<Vector<4, Bytes<32>>>([
+    pad(32, "avp:provenance:v1:"),
+    assetId,
+    eventId,
+    secret
+  ]);
+}
+
+circuit adminPublicKey(secretKey: Bytes<32>): Bytes<32> {
+  return persistentHash<Vector<2, Bytes<32>>>([
+    pad(32, "avp:admin:v1:"),
+    secretKey
+  ]);
+}
+
+circuit oraclePublicKey(secretKey: Bytes<32>): Bytes<32> {
+  return persistentHash<Vector<2, Bytes<32>>>([
+    pad(32, "avp:oracle:v1:"),
+    secretKey
+  ]);
+}
+
+// ---------------------------------------------------------------------------
+// Constructor
+// ---------------------------------------------------------------------------
+
+// adminKey and oracleKey are public-key-style commitments computed off-chain
+// (see adminPublicKey / oraclePublicKey) from secrets that are never
+// submitted to the contract.
+constructor(adminKey: Bytes<32>, oracleKey: Bytes<32>) {
+  admin = disclose(adminKey);
+  oracle = disclose(oracleKey);
+}
+
+// ---------------------------------------------------------------------------
+// Asset registration
+// ---------------------------------------------------------------------------
+
+export circuit registerAsset(
+  assetId: Bytes<32>,
+  assetCategory: Uint<8>,
+  registeredAt: Uint<64>
+): [] {
+  // The asset id is a public identifier by design (it is how anyone looks
+  // up this asset's public record), so it is disclosed once here and reused
+  // for every ledger touch point below. No secret material is disclosed.
+  const publicAssetId = disclose(assetId);
+  assert(!assets.member(publicAssetId), "Asset is already registered");
+
+  const secretKey = ownerSecretKey(assetId);
+  const commitment = ownerCommitment(assetId, secretKey);
+
+  const record: AssetRecord = AssetRecord {
+    assetCategory: assetCategory,
+    registeredAt: registeredAt,
+    ownerCommitment: commitment,
+    status: AssetStatus.ACTIVE
+  };
+
+  assets.insert(publicAssetId, disclose(record));
+  assetCount.increment(1);
+}
+
+// ---------------------------------------------------------------------------
+// Ownership transfer
+// ---------------------------------------------------------------------------
+
+// newOwnerCommitment is a public-key-style commitment computed off-chain by
+// the incoming owner (via the same ownerCommitment scheme) and shared with
+// the current owner to complete the handoff. The incoming owner's secret is
+// never disclosed to the current owner or to this contract.
+export circuit transferOwnership(
+  assetId: Bytes<32>,
+  newOwnerCommitment: Bytes<32>
+): [] {
+  const publicAssetId = disclose(assetId);
+  assert(assets.member(publicAssetId), "Asset is not registered");
+  const asset = assets.lookup(publicAssetId);
+  assert(asset.status == AssetStatus.ACTIVE, "Asset is not active");
+
+  const secretKey = ownerSecretKey(assetId);
+  assert(
+    asset.ownerCommitment == ownerCommitment(assetId, secretKey),
+    "Only the current owner may transfer this asset"
+  );
+
+  const updated: AssetRecord = AssetRecord {
+    assetCategory: asset.assetCategory,
+    registeredAt: asset.registeredAt,
+    ownerCommitment: newOwnerCommitment,
+    status: AssetStatus.ACTIVE
+  };
+
+  assets.insert(publicAssetId, disclose(updated));
+}
+
+export circuit retireAsset(assetId: Bytes<32>): [] {
+  const publicAssetId = disclose(assetId);
+  assert(assets.member(publicAssetId), "Asset is not registered");
+  const asset = assets.lookup(publicAssetId);
+  assert(asset.status == AssetStatus.ACTIVE, "Asset is not active");
+
+  const secretKey = ownerSecretKey(assetId);
+  assert(
+    asset.ownerCommitment == ownerCommitment(assetId, secretKey),
+    "Only the current owner may retire this asset"
+  );
+
+  const updated: AssetRecord = AssetRecord {
+    assetCategory: asset.assetCategory,
+    registeredAt: asset.registeredAt,
+    ownerCommitment: asset.ownerCommitment,
+    status: AssetStatus.RETIRED
+  };
+
+  assets.insert(publicAssetId, disclose(updated));
+}
+
+// ---------------------------------------------------------------------------
+// Confidential credentials
+// ---------------------------------------------------------------------------
+
+export circuit addCredential(
+  assetId: Bytes<32>,
+  credentialId: Bytes<32>,
+  credentialType: Uint<8>,
+  issuerCommitment: Bytes<32>,
+  addedAt: Uint<64>
+): [] {
+  const publicAssetId = disclose(assetId);
+  const publicCredentialId = disclose(credentialId);
+
+  assert(assets.member(publicAssetId), "Asset is not registered");
+  assert(!credentials.member(publicCredentialId), "Credential already exists");
+
+  const asset = assets.lookup(publicAssetId);
+  const ownerSk = ownerSecretKey(assetId);
+  assert(
+    asset.ownerCommitment == ownerCommitment(assetId, ownerSk),
+    "Only the asset owner may add a credential"
+  );
+
+  const secret = credentialSecret(credentialId);
+  const commitment = credentialCommitment(assetId, credentialId, secret);
+
+  const record: CredentialRecord = CredentialRecord {
+    assetId: assetId,
+    credentialType: credentialType,
+    issuerCommitment: issuerCommitment,
+    credentialCommitment: commitment,
+    status: CredentialStatus.PENDING,
+    addedAt: addedAt
+  };
+
+  credentials.insert(publicCredentialId, disclose(record));
+
+  const currentCount: Uint<64> = credentialCountByAsset.member(publicAssetId)
+    ? credentialCountByAsset.lookup(publicAssetId)
+    : 0;
+  credentialCountByAsset.insert(publicAssetId, disclose(currentCount + 1 as Uint<64>));
+}
+
+// Proves knowledge of the private material behind a stored credential
+// commitment, without revealing that material, and marks the credential
+// as verified.
+export circuit verifyCredential(credentialId: Bytes<32>): [] {
+  const publicCredentialId = disclose(credentialId);
+  assert(credentials.member(publicCredentialId), "Credential does not exist");
+  const record = credentials.lookup(publicCredentialId);
+  assert(
+    record.status == CredentialStatus.PENDING,
+    "Credential is not pending verification"
+  );
+
+  const secret = credentialSecret(credentialId);
+  const recomputed = credentialCommitment(record.assetId, credentialId, secret);
+  assert(
+    recomputed == record.credentialCommitment,
+    "Credential proof does not match the stored commitment"
+  );
+
+  const updated: CredentialRecord = CredentialRecord {
+    assetId: record.assetId,
+    credentialType: record.credentialType,
+    issuerCommitment: record.issuerCommitment,
+    credentialCommitment: record.credentialCommitment,
+    status: CredentialStatus.VERIFIED,
+    addedAt: record.addedAt
+  };
+
+  credentials.insert(publicCredentialId, disclose(updated));
+}
+
+// Administrative revocation (e.g. a credential is later found to be
+// fraudulent or withdrawn by its issuer).
+export circuit revokeCredential(credentialId: Bytes<32>): [] {
+  const publicCredentialId = disclose(credentialId);
+  assert(credentials.member(publicCredentialId), "Credential does not exist");
+
+  const secretKey = adminSecretKey();
+  assert(
+    admin == adminPublicKey(secretKey),
+    "Only the protocol administrator may revoke a credential"
+  );
+
+  const record = credentials.lookup(publicCredentialId);
+  const updated: CredentialRecord = CredentialRecord {
+    assetId: record.assetId,
+    credentialType: record.credentialType,
+    issuerCommitment: record.issuerCommitment,
+    credentialCommitment: record.credentialCommitment,
+    status: CredentialStatus.REVOKED,
+    addedAt: record.addedAt
+  };
+
+  credentials.insert(publicCredentialId, disclose(updated));
+}
+
+// ---------------------------------------------------------------------------
+// Provenance events
+// ---------------------------------------------------------------------------
+
+export circuit addProvenanceEvent(
+  assetId: Bytes<32>,
+  eventId: Bytes<32>,
+  eventType: Uint<8>,
+  recordedAt: Uint<64>
+): [] {
+  const publicAssetId = disclose(assetId);
+  const publicEventId = disclose(eventId);
+
+  assert(assets.member(publicAssetId), "Asset is not registered");
+  assert(!provenance.member(publicEventId), "Provenance event already recorded");
+
+  const asset = assets.lookup(publicAssetId);
+  const ownerSk = ownerSecretKey(assetId);
+  assert(
+    asset.ownerCommitment == ownerCommitment(assetId, ownerSk),
+    "Only the asset owner may record a provenance event"
+  );
+
+  const secret = provenanceSecret(eventId);
+  const commitment = provenanceCommitment(assetId, eventId, secret);
+
+  const record: ProvenanceRecord = ProvenanceRecord {
+    assetId: assetId,
+    eventType: eventType,
+    eventCommitment: commitment,
+    recordedAt: recordedAt
+  };
+
+  provenance.insert(publicEventId, disclose(record));
+
+  const currentCount: Uint<64> = provenanceCountByAsset.member(publicAssetId)
+    ? provenanceCountByAsset.lookup(publicAssetId)
+    : 0;
+  provenanceCountByAsset.insert(publicAssetId, disclose(currentCount + 1 as Uint<64>));
+}
+
+// ---------------------------------------------------------------------------
+// Risk-assessment reference
+// ---------------------------------------------------------------------------
+
+// Records a committed reference to an off-chain risk assessment (e.g. the
+// output of an AI risk-analysis process). Only the authorized oracle role
+// may submit this reference; the analysis itself is never executed by this
+// contract, and only a hash commitment plus a coarse disclosed tier are
+// stored. The full assessment remains off-chain.
+export circuit recordRiskAssessment(
+  assetId: Bytes<32>,
+  riskCommitment: Bytes<32>,
+  riskTier: Uint<8>,
+  assessedAt: Uint<64>
+): [] {
+  const publicAssetId = disclose(assetId);
+  assert(assets.member(publicAssetId), "Asset is not registered");
+  assert(riskTier <= 4, "Risk tier out of range");
+
+  const secretKey = oracleSecretKey();
+  assert(
+    oracle == oraclePublicKey(secretKey),
+    "Only the authorized risk oracle may record a risk assessment"
+  );
+
+  const record: RiskRecord = RiskRecord {
+    assetId: assetId,
+    riskCommitment: riskCommitment,
+    riskTier: riskTier,
+    assessedAt: assessedAt
+  };
+
+  riskAssessments.insert(publicAssetId, disclose(record));
+}
