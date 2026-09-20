@@ -5,12 +5,20 @@
   "version": "0.1.0",
   "license": "UNLICENSED",
   "workspaces": [
-    "contract"
+    "contract",
+    "frontend"
   ],
   "scripts": {
     "contract:compile": "npm run compact:compile --workspace contract",
+    "contract:typecheck": "npm run typecheck --workspace contract",
     "contract:test": "npm run test --workspace contract",
-    "contract:build": "npm run build --workspace contract"
+    "contract:build": "npm run build --workspace contract",
+    "contract:deploy:preprod": "npm run deploy:preprod --workspace contract",
+    "contract:deploy:preprod:validate": "npm run deploy:preprod:validate --workspace contract",
+    "frontend:dev": "npm run dev --workspace frontend",
+    "frontend:typecheck": "npm run typecheck --workspace frontend",
+    "frontend:build": "npm run build --workspace frontend",
+    "frontend:test": "npm run test --workspace frontend"
   },
   "engines": {
     "node": ">=22.0.0"

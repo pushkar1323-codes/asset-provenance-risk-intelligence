@@ -15,6 +15,10 @@ contract/managed/*
 *.pem
 *.key
 
+# Locally generated deployment secret material (admin/oracle keys) - never
+# committed, and safe to delete (a new deployment will regenerate it).
+contract/.deployment-secrets/
+
 # Logs
 *.log
 npm-debug.log*
@@ -26,5 +30,3 @@ npm-debug.log*
 
 # Test / coverage
 coverage/
-
-asset-provenance-risk-intelligence.zip
