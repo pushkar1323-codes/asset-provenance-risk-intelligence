@@ -1,0 +1,43 @@
+name: CI
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+
+jobs:
+  build:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+          cache: 'npm'
+
+      - name: Setup Compact compiler
+        uses: midnightntwrk/setup-compact-action@v1
+
+      - name: Install dependencies
+        run: npm install
+
+      - name: Compile contract
+        run: npm run contract:compile
+
+      - name: Typecheck contract
+        run: npm run contract:typecheck
+
+      - name: Run contract tests
+        run: npm run contract:test
+
+      - name: Typecheck frontend
+        run: npm run frontend:typecheck
+
+      - name: Run frontend tests
+        run: npm run frontend:test
+
+      - name: Build frontend
+        run: npm run frontend:build

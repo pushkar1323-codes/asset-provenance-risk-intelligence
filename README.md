@@ -1,5 +1,7 @@
 # Asset Provenance & Risk Intelligence Protocol
 
+[![CI](https://github.com/<OWNER>/asset-provenance-risk-intelligence/actions/workflows/ci.yml/badge.svg)](https://github.com/<OWNER>/asset-provenance-risk-intelligence/actions/workflows/ci.yml)
+
 A privacy-preserving asset passport, built on Midnight, that lets owners and
 authorized parties verify vehicle ownership, provenance, and service or
 compliance credentials — without exposing the sensitive information behind
@@ -296,6 +298,15 @@ Build the web application:
 ```bash
 npm run frontend:build
 ```
+
+## CI/CD
+
+`.github/workflows/ci.yml` runs on every push to `main` and on every pull
+request. It installs dependencies, compiles the contract with the Compact
+compiler, typechecks and tests both workspaces, and builds the frontend —
+the same commands documented above, run the same way. It does not deploy
+anything or require any secrets; a deployment remains a manual,
+deliberate action (see "Deploying to Preprod" below).
 
 ## Deploying to Preprod
 
