@@ -49,6 +49,30 @@ describe('WalletPanel', () => {
     expect(screen.getByText(/connected wallet is on network/i)).toBeInTheDocument();
   });
 
+  it('shows a loading indicator while a connection is in progress', () => {
+    const wallet = makeWallet({
+      state: { ...initialWalletState, status: 'connecting' }
+    });
+
+    render(<WalletPanel wallet={wallet} expectedNetworkId="undeployed" />);
+
+    expect(screen.getByRole('status')).toHaveTextContent(/waiting for wallet authorization/i);
+  });
+
+  it('shows a clear, actionable error state when connection fails', () => {
+    const disconnect = vi.fn();
+    const wallet = makeWallet({
+      state: { ...initialWalletState, status: 'error', error: 'No compatible wallet was found.' },
+      disconnect
+    });
+
+    render(<WalletPanel wallet={wallet} expectedNetworkId="undeployed" />);
+
+    expect(screen.getByRole('alert')).toHaveTextContent('No compatible wallet was found.');
+    fireEvent.click(screen.getByRole('button', { name: /try again/i }));
+    expect(disconnect).toHaveBeenCalledTimes(1);
+  });
+
   it('calls disconnect and the panel returns to its disconnected affordance', () => {
     const disconnect = vi.fn();
     const wallet = makeWallet({

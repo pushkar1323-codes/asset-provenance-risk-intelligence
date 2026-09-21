@@ -37,7 +37,8 @@ export const WalletPanel = ({ wallet, expectedNetworkId }: WalletPanelProps) => 
       )}
 
       {state.status === 'connecting' && (
-        <p role="status" aria-live="polite">
+        <p className="loading-row" role="status" aria-live="polite">
+          <span className="spinner" aria-hidden="true" />
           Waiting for wallet authorization…
         </p>
       )}

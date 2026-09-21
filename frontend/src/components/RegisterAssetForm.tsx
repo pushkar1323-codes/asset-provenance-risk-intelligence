@@ -83,7 +83,8 @@ export const RegisterAssetForm = ({ disabled, disabledReason, onSubmit }: Regist
       </form>
 
       {submission.phase === 'submitting' && (
-        <p role="status" aria-live="polite">
+        <p className="loading-row" role="status" aria-live="polite">
+          <span className="spinner" aria-hidden="true" />
           Building the proof and preparing the transaction…
         </p>
       )}

@@ -13,6 +13,20 @@ exercises one real contract operation end to end (see
 [Status](#status) for exactly what has and has not been verified). The
 off-chain risk-intelligence service is not implemented yet.
 
+## Live Demo
+
+No live deployment exists yet, so there is no demo link to publish. This
+section will be filled in with a real URL only once a deployed instance
+has actually been verified to work end to end — see
+[Verification status](#verification-status) for what "verified" means in
+this repository.
+
+## Contract Address
+
+| Network | Address |
+|---------|---------|
+| Preprod | *Not yet deployed.* No contract has been deployed to Preprod, so no address exists. This row will be filled in only after a real deployment has been performed and independently confirmed — see [Deploying to Preprod](#deploying-to-preprod). |
+
 ## What this protocol does
 
 The initial vertical is a **Vehicle Asset Passport**. It lets a vehicle's
@@ -81,6 +95,42 @@ the public ledger:
 
 Selective disclosure is deliberate throughout: the contract only exposes
 what a specific circuit genuinely needs to become verifiable on-chain.
+
+## Privacy Claim
+
+What someone with no private state — anyone reading the public ledger or
+watching submitted transactions, with no witness data of their own — can
+and cannot learn about this protocol:
+
+**Can see:**
+
+- That a given asset id exists, its category, registration time, and
+  whether it is active or retired
+- That an asset's ownership commitment changed (a transfer or retirement
+  occurred) — never who the owner is, or any owner's private key
+- That a credential exists for a given asset, its declared type, its
+  lifecycle status (pending/verified/revoked), and which issuer
+  commitment vouches for it — never the credential document itself
+- That a provenance event was recorded for a given asset, its declared
+  event type, and when — never the private detail behind that event
+- That a risk assessment exists for a given asset, its coarse risk tier,
+  and when it was recorded — never the detail behind that assessment
+
+**Cannot see, deduce, or reconstruct:**
+
+- Any owner's, administrator's, or risk oracle's private key
+- The contents of any credential document (inspection report, insurance
+  document, etc.)
+- The private detail behind any provenance event
+- The full off-chain risk assessment referenced by a risk commitment
+- Which real-world identity controls a given owner, admin, or oracle
+  commitment
+
+This boundary is not a policy promise layered on top of the contract —
+it is exactly the set of values passed through `disclose()` in
+`asset-passport.compact` (see [Privacy model](#privacy-model) above for
+the itemized list). Anything not explicitly disclosed there never leaves
+the caller's own machine.
 
 ## Technology stack
 
@@ -216,7 +266,7 @@ encoding. See [Status](#status) for what this means in practice.
   documentation current as of this implementation. Confirm these are
   still the current recommended versions before installing.
 
-## Setup
+## Setup & Run Locally
 
 From the repository root:
 
@@ -244,7 +294,7 @@ Run the web application locally:
 npm run frontend:dev
 ```
 
-## Running tests
+## Run Tests
 
 ```bash
 npm run contract:test
@@ -307,6 +357,15 @@ compiler, typechecks and tests both workspaces, and builds the frontend —
 the same commands documented above, run the same way. It does not deploy
 anything or require any secrets; a deployment remains a manual,
 deliberate action (see "Deploying to Preprod" below).
+
+## Product Proposal
+
+See [`PROPOSAL.md`](./PROPOSAL.md) for the product description and
+target users, the technical rationale for building this specifically on
+Midnight, the full data model (public ledger fields, private witness
+data, and what is proven without being revealed), and a realistic
+assessment of what remains before this could reach a production/Mainnet
+deployment.
 
 ## Deploying to Preprod
 
