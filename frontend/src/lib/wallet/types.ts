@@ -8,6 +8,8 @@
  * wallets injected at once.
  */
 
+import type { InitialAPI, KeyMaterialProvider, ProvingProvider } from '@midnight-ntwrk/dapp-connector-api';
+
 /** Configuration a connected wallet reports for the network services it uses. */
 export type WalletServiceConfiguration = {
   readonly indexerUri: string;
@@ -45,22 +47,27 @@ export type ConnectedWalletApi = {
     options?: { payFees?: boolean }
   ): Promise<{ tx: string }>;
   submitTransaction(tx: string): Promise<void>;
+  /**
+   * Obtains a ledger-compatible ZK proving provider from the wallet, so
+   * proof generation is delegated to the wallet instead of a locally
+   * configured proof server. Not every wallet implements this - per the
+   * Midnight DApp Connector API's own documentation, 1AM implements it
+   * (in-browser WASM proving) while Lace does not (it requires a local
+   * proof server instead). Callers must feature-detect
+   * (`typeof api.getProvingProvider === 'function'`) before calling this.
+   */
+  getProvingProvider?(keyMaterialProvider: KeyMaterialProvider): Promise<ProvingProvider>;
 };
 
-/** The wallet's pre-connection ("initial") API, as injected on `window.midnight`. */
-export type InjectedWalletApi = {
-  readonly rdns: string;
-  readonly name: string;
-  readonly icon: string;
-  readonly apiVersion: string;
-  connect(networkId: string): Promise<ConnectedWalletApi>;
-};
-
-declare global {
-  interface Window {
-    midnight?: Record<string, InjectedWalletApi>;
-  }
-}
+/**
+ * The wallet's pre-connection ("initial") API, as injected on `window.midnight`.
+ * This is an alias for @midnight-ntwrk/dapp-connector-api's own InitialAPI
+ * type. Note: that package's own type declarations already augment
+ * `Window.midnight` globally (loaded transitively via the import above), so
+ * this module does not redeclare it - a second, differently-typed
+ * declaration would conflict with the package's own.
+ */
+export type InjectedWalletApi = InitialAPI;
 
 /** A wallet detected on the page, before connection is established. */
 export type DetectedWallet = {

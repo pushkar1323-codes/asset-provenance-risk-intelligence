@@ -26,7 +26,14 @@ export type RegisterAssetFailure = {
   readonly kind: 'failure';
   readonly stage: 'preparing' | 'connecting' | 'submitting';
   readonly message: string;
-  /** Set when the failure is the documented wallet-adapter boundary, not an unexpected error. */
+  /**
+   * Set when the failure surfaced from inside WalletProviderAdapter itself
+   * (balancing or submitting through the connected wallet) rather than from
+   * an unrelated application error. WalletProviderAdapter's logic is
+   * implemented against the Midnight DApp Connector API's documented
+   * behavior, but has not yet been exercised against a live connected
+   * wallet - see the project README for what remains to be verified there.
+   */
   readonly requiresLiveWalletVerification: boolean;
 };
 

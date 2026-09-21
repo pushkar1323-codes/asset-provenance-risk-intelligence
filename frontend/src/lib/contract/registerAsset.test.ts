@@ -65,9 +65,12 @@ describe('registerAsset', () => {
         registerAsset: vi
           .fn()
           .mockRejectedValue(
-            new Error(
-              'WalletProviderAdapter.submitTx: transaction identifier retrieval is not implemented.'
-            )
+            // Simulates a failure surfaced by WalletProviderAdapter itself (as opposed to
+            // an unrelated application error) - e.g. a connected wallet whose balanced
+            // transaction could not be deserialized, or a submitted transaction that
+            // reported no identifiers. The classification below keys off the
+            // "WalletProviderAdapter.<method>" prefix, not this exact message.
+            new Error('WalletProviderAdapter.submitTx: the submitted transaction reported no identifiers.')
           )
       }
     });

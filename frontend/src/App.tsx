@@ -65,7 +65,7 @@ export const App = () => {
       shieldedEncryptionPublicKey
     );
 
-    const providers = buildBrowserAssetPassportProviders(
+    const providers = await buildBrowserAssetPassportProviders(
       {
         zkConfigBaseUrl: environment.zkConfigBaseUrl,
         indexerUrl: serviceConfiguration.indexerUri,
@@ -76,7 +76,11 @@ export const App = () => {
         // from a proper secret store, not a constant.
         privateStoragePasswordProvider: () => 'asset-passport-local-state'
       },
-      { walletProvider: adapter, midnightProvider: adapter }
+      {
+        walletProvider: adapter,
+        midnightProvider: adapter,
+        getProvingProvider: wallet.connectedApi.getProvingProvider?.bind(wallet.connectedApi)
+      }
     );
 
     return registerAsset(input, providers, {

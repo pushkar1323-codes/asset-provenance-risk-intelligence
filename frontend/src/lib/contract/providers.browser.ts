@@ -8,11 +8,13 @@
  */
 
 import type { MidnightProvider, ProofProvider, PublicDataProvider, WalletProvider } from '@midnight-ntwrk/midnight-js-types';
+import { createProofProvider } from '@midnight-ntwrk/midnight-js-types';
 import { httpClientProofProvider } from '@midnight-ntwrk/midnight-js-http-client-proof-provider';
 import { indexerPublicDataProvider } from '@midnight-ntwrk/midnight-js-indexer-public-data-provider';
 import { levelPrivateStateProvider } from '@midnight-ntwrk/midnight-js-level-private-state-provider';
 import { FetchZkConfigProvider } from '@midnight-ntwrk/midnight-js-fetch-zk-config-provider';
 import type * as ContractNS from '@midnight-ntwrk/compact-js/effect/Contract';
+import type { ConnectedWalletApi } from '../wallet/types.js';
 
 // eslint-disable-next-line @typescript-eslint/ban-ts-comment
 // @ts-ignore -- resolved once `compact compile` has generated ../../../../contract/managed/**
@@ -36,6 +38,16 @@ export type BrowserNetworkConfig = {
 export type BrowserWalletProviders = {
   readonly walletProvider: WalletProvider;
   readonly midnightProvider: MidnightProvider;
+  /**
+   * The connected wallet's own proving-provider factory, when it exposes
+   * one. Coverage genuinely varies by wallet: 1AM proves in-browser via
+   * WASM and implements this, while Lace does not and instead requires a
+   * locally running proof server (see docs.midnight.network/sdks/
+   * community/wallets/community-wallets-integration#where-zk-proofs-come-from).
+   * Pass the wallet's method directly (or omit it) - this module handles
+   * the feature-detection and fallback itself.
+   */
+  readonly getProvingProvider?: ConnectedWalletApi['getProvingProvider'];
 };
 
 export type BrowserAssetPassportProviders = {
@@ -47,16 +59,21 @@ export type BrowserAssetPassportProviders = {
   >;
 } & BrowserWalletProviders;
 
-export const buildBrowserAssetPassportProviders = (
+export const buildBrowserAssetPassportProviders = async (
   network: BrowserNetworkConfig,
   wallet: BrowserWalletProviders
-): BrowserAssetPassportProviders => {
+): Promise<BrowserAssetPassportProviders> => {
   const zkConfigProvider = new FetchZkConfigProvider<AssetPassportCircuitId>(network.zkConfigBaseUrl);
+
+  const proofProvider =
+    typeof wallet.getProvingProvider === 'function'
+      ? createProofProvider(await wallet.getProvingProvider(zkConfigProvider.asKeyMaterialProvider()))
+      : httpClientProofProvider(network.proofServerUrl, zkConfigProvider);
 
   return {
     zkConfigProvider,
     publicDataProvider: indexerPublicDataProvider(network.indexerUrl, network.indexerWsUri),
-    proofProvider: httpClientProofProvider(network.proofServerUrl, zkConfigProvider),
+    proofProvider,
     privateStateProvider: levelPrivateStateProvider<string, AssetPassportPrivateState>({
       privateStoragePasswordProvider: network.privateStoragePasswordProvider,
       accountId: network.privateStateAccountId

@@ -4,24 +4,42 @@
  * (see contract/src/api/providers.ts) to balance and submit transactions.
  *
  * Boundary note: the DApp Connector API's balanceUnsealedTransaction and
- * submitTransaction methods exchange transactions as opaque strings, while
+ * submitTransaction methods exchange transactions as strings, while
  * WalletProvider/MidnightProvider (from @midnight-ntwrk/midnight-js-types)
- * exchange typed Transaction objects from @midnight-ntwrk/ledger-v8. This
- * adapter bridges the two using that package's own serialize()/deserialize()
- * methods. The Midnight DApp Connector API specification does not itself
- * mandate a wire format for the string it accepts, so the exact encoding
- * this adapter uses has not been confirmed against a live wallet. Balancing
- * and submitting a transaction through this adapter requires that
- * verification (see project README).
+ * exchange typed Transaction objects from @midnight-ntwrk/ledger-v8. The
+ * installed @midnight-ntwrk/dapp-connector-api (v4.0.1) documents this
+ * boundary directly in its own type declarations: balanceUnsealedTransaction
+ * "expects a serialized transaction of type Transaction<SignatureEnabled,
+ * Proof, PreBinding>" (exactly midnight-js-types' UnboundTransaction), and
+ * submitTransaction expects one "cryptographically bound
+ * (Transaction<SignatureEnabled, Proof, Binding> type)" (exactly
+ * FinalizedTransaction). The string itself is the hex encoding of that
+ * transaction's own serialize() output, using the toHex/fromHex helpers
+ * @midnight-ntwrk/midnight-js-utils ships for exactly this purpose - the
+ * same encoding used throughout the Midnight ecosystem for transaction
+ * hashes and identifiers (both hex-encoded strings per ledger-v8's own
+ * type declarations).
+ *
+ * submitTransaction() itself returns void - the connector uses the wallet
+ * purely as a relayer and does not hand back an identifier. The
+ * transaction identifier midnight-js-contracts needs (to watch the
+ * indexer for the submitted transaction) is instead read directly off the
+ * already-finalized Transaction object passed into submitTx(), via its own
+ * identifiers() method - no invented conversion is needed for this either.
  */
 
-import type { WalletProvider, MidnightProvider } from '@midnight-ntwrk/midnight-js-types';
+import type { WalletProvider, MidnightProvider, UnboundTransaction } from '@midnight-ntwrk/midnight-js-types';
 import type {
+  Binding,
   CoinPublicKey,
   EncPublicKey,
   FinalizedTransaction,
+  Proof,
+  SignatureEnabled,
   TransactionId
 } from '@midnight-ntwrk/midnight-js-protocol/ledger';
+import { Transaction } from '@midnight-ntwrk/midnight-js-protocol/ledger';
+import { toHex, fromHex } from '@midnight-ntwrk/midnight-js-utils';
 import type { ConnectedWalletApi } from './types.js';
 
 export class WalletProviderAdapter implements WalletProvider, MidnightProvider {
@@ -39,37 +57,26 @@ export class WalletProviderAdapter implements WalletProvider, MidnightProvider {
     return this.encryptionPublicKey;
   }
 
-  async balanceTx(tx: { serialize(): Uint8Array }): Promise<FinalizedTransaction> {
-    const serialized = uint8ArrayToBase64(tx.serialize());
-    await this.api.balanceUnsealedTransaction(serialized);
-    // Reconstructing a real FinalizedTransaction from the balanced string
-    // requires the exact ledger package build the connected wallet uses,
-    // plus its signature/proof/binding type markers, which cannot be
-    // safely assumed without a live wallet to verify against.
-    throw new Error(
-      'WalletProviderAdapter.balanceTx: transaction deserialization is not implemented. ' +
-        'Requires verification against the connected wallet in a live environment.'
+  async balanceTx(tx: UnboundTransaction): Promise<FinalizedTransaction> {
+    const { tx: balancedHex } = await this.api.balanceUnsealedTransaction(toHex(tx.serialize()));
+    // balanceUnsealedTransaction returns a transaction ready for submission:
+    // balanced, fee-paid, signed, and cryptographically bound by the wallet.
+    return Transaction.deserialize<SignatureEnabled, Proof, Binding>(
+      'signature',
+      'proof',
+      'binding',
+      fromHex(balancedHex)
     );
   }
 
-  async submitTx(tx: { serialize(): Uint8Array }): Promise<TransactionId> {
-    const serialized = uint8ArrayToBase64(tx.serialize());
-    await this.api.submitTransaction(serialized);
-    // The connector API's submitTransaction does not return a transaction
-    // identifier. Deriving one requires calling an identifier method (e.g.
-    // transactionHash()) on the real ledger Transaction object, which this
-    // adapter's minimal Transaction-like parameter type does not expose.
-    throw new Error(
-      'WalletProviderAdapter.submitTx: transaction identifier retrieval is not implemented. ' +
-        'Requires verification against the connected wallet in a live environment.'
-    );
+  async submitTx(tx: FinalizedTransaction): Promise<TransactionId> {
+    await this.api.submitTransaction(toHex(tx.serialize()));
+    const [transactionId] = tx.identifiers();
+    if (!transactionId) {
+      throw new Error(
+        'WalletProviderAdapter.submitTx: the submitted transaction reported no identifiers.'
+      );
+    }
+    return transactionId;
   }
 }
-
-const uint8ArrayToBase64 = (bytes: Uint8Array): string => {
-  let binary = '';
-  for (const byte of bytes) {
-    binary += String.fromCharCode(byte);
-  }
-  return btoa(binary);
-};
