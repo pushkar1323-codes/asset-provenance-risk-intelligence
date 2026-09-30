@@ -33,3 +33,38 @@ export const readAppEnvironment = (): AppEnvironment => ({
   ),
   zkConfigBaseUrl: requireEnv('VITE_ZK_CONFIG_BASE_URL', import.meta.env.VITE_ZK_CONFIG_BASE_URL)
 });
+
+/** Names of the build-time variables this application requires. */
+export const REQUIRED_ENVIRONMENT_KEYS = [
+  'VITE_MIDNIGHT_NETWORK_ID',
+  'VITE_ASSET_PASSPORT_CONTRACT_ADDRESS',
+  'VITE_ZK_CONFIG_BASE_URL'
+] as const;
+
+export type EnvironmentCheck =
+  | { readonly configured: true; readonly environment: AppEnvironment; readonly missing: readonly [] }
+  | { readonly configured: false; readonly environment: null; readonly missing: readonly string[] };
+
+/**
+ * Reports configuration status without throwing, listing every missing
+ * variable rather than only the first. Intended for UI code that needs to
+ * show a neutral "not configured" state and keep the details available for
+ * developers.
+ */
+export const checkAppEnvironment = (
+  env: Record<string, string | undefined> = import.meta.env
+): EnvironmentCheck => {
+  const missing = REQUIRED_ENVIRONMENT_KEYS.filter((key) => !env[key]);
+  if (missing.length > 0) {
+    return { configured: false, environment: null, missing };
+  }
+  return {
+    configured: true,
+    environment: {
+      networkId: env.VITE_MIDNIGHT_NETWORK_ID as string,
+      contractAddress: env.VITE_ASSET_PASSPORT_CONTRACT_ADDRESS as string,
+      zkConfigBaseUrl: env.VITE_ZK_CONFIG_BASE_URL as string
+    },
+    missing: []
+  };
+};

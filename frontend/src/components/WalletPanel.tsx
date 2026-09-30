@@ -1,32 +1,50 @@
 import type { UseWalletResult } from '../lib/wallet/useWallet.js';
+import { shortenMiddle } from '../lib/ui/format.js';
+import { Icon } from './ui/Icon.js';
+import { StatusBadge } from './ui/StatusBadge.js';
 
 type WalletPanelProps = {
   readonly wallet: UseWalletResult;
   readonly expectedNetworkId: string;
+  /** When set, connecting is disabled and this reason is shown instead. */
+  readonly connectDisabledReason?: string;
+  /** Renders without the surrounding card, for use inside a menu. */
+  readonly bare?: boolean;
 };
 
-const shortenAddress = (address: string): string =>
-  address.length > 20 ? `${address.slice(0, 10)}…${address.slice(-6)}` : address;
-
-export const WalletPanel = ({ wallet, expectedNetworkId }: WalletPanelProps) => {
+export const WalletPanel = ({ wallet, expectedNetworkId, connectDisabledReason, bare }: WalletPanelProps) => {
   const { state, availableWallets, networkMismatch, connect, disconnect } = wallet;
 
   return (
-    <section className="panel" aria-label="Wallet connection">
-      <h2>Wallet</h2>
+    <section className={bare ? 'wallet-panel' : 'card wallet-panel'} aria-label="Wallet connection">
+      <div className="card-head">
+        <h2 className="card-title">Wallet</h2>
+        {state.status === 'connected' && (
+          <StatusBadge tone={networkMismatch ? 'danger' : 'success'}>
+            {networkMismatch ? 'Wrong network' : 'Connected'}
+          </StatusBadge>
+        )}
+      </div>
 
       {state.status === 'disconnected' && (
         <div>
+          {connectDisabledReason && <p className="muted">{connectDisabledReason}</p>}
           {availableWallets.length === 0 ? (
-            <p className="hint">
-              No compatible wallet extension was detected. Install a Midnight-compatible wallet
-              and reload this page.
+            <p className="muted">
+              No compatible wallet extension was detected. Install a Midnight-compatible wallet and
+              reload this page.
             </p>
           ) : (
             <ul className="wallet-list">
               {availableWallets.map((w) => (
                 <li key={w.id}>
-                  <button type="button" onClick={() => connect(w.id)}>
+                  <button
+                    type="button"
+                    className="btn btn-secondary wallet-option"
+                    disabled={Boolean(connectDisabledReason)}
+                    onClick={() => connect(w.id)}
+                  >
+                    {w.icon ? <img src={w.icon} alt="" width={24} height={24} /> : <Icon name="wallet" />}
                     Connect {w.name}
                   </button>
                 </li>
@@ -44,39 +62,42 @@ export const WalletPanel = ({ wallet, expectedNetworkId }: WalletPanelProps) => 
       )}
 
       {state.status === 'error' && (
-        <div role="alert">
-          <p className="error">{state.error}</p>
-          <button type="button" onClick={disconnect}>
-            Try again
-          </button>
+        <div role="alert" className="stack">
+          <p className="error-text">{state.error}</p>
+          <div>
+            <button type="button" className="btn btn-secondary" onClick={disconnect}>
+              Try again
+            </button>
+          </div>
         </div>
       )}
 
       {state.status === 'connected' && (
-        <div>
-          <dl className="wallet-info">
+        <div className="stack">
+          <dl className="facts">
             <dt>Wallet</dt>
             <dd>{state.walletName}</dd>
             <dt>Address</dt>
-            <dd title={state.unshieldedAddress ?? undefined}>
-              {state.unshieldedAddress ? shortenAddress(state.unshieldedAddress) : '—'}
+            <dd className="mono" title={state.unshieldedAddress ?? undefined}>
+              {state.unshieldedAddress ? shortenMiddle(state.unshieldedAddress) : '—'}
             </dd>
             <dt>Network</dt>
             <dd>{state.networkId}</dd>
           </dl>
 
-          {networkMismatch && (
-            <p className="error" role="alert">
+          {networkMismatch ? (
+            <p className="error-text" role="alert">
               {networkMismatch}
             </p>
-          )}
-          {!networkMismatch && (
-            <p className="hint">Connected to the expected network ({expectedNetworkId}).</p>
+          ) : (
+            <p className="muted">Connected to the expected network ({expectedNetworkId}).</p>
           )}
 
-          <button type="button" onClick={disconnect}>
-            Disconnect
-          </button>
+          <div>
+            <button type="button" className="btn btn-secondary" onClick={disconnect}>
+              Disconnect
+            </button>
+          </div>
         </div>
       )}
     </section>

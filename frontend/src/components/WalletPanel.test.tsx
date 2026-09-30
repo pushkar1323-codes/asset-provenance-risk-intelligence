@@ -98,3 +98,22 @@ describe('WalletPanel', () => {
     expect(disconnect).toHaveBeenCalledTimes(1);
   });
 });
+
+describe('WalletPanel when the app is not configured', () => {
+  it('disables connecting and explains why', () => {
+    const wallet = makeWallet({
+      availableWallets: [{ id: 'org.example.wallet', name: 'Example Wallet', icon: '', apiVersion: '4.0.1' }]
+    });
+
+    render(
+      <WalletPanel
+        wallet={wallet}
+        expectedNetworkId="(unconfigured)"
+        connectDisabledReason="Connecting a wallet is turned off until the app is configured."
+      />
+    );
+
+    expect(screen.getByRole('button', { name: /connect example wallet/i })).toBeDisabled();
+    expect(screen.getByText(/turned off until the app is configured/i)).toBeInTheDocument();
+  });
+});

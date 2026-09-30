@@ -1,0 +1,99 @@
+/* Design tokens. Every colour used by the app comes from here. */
+:root {
+  color-scheme: light dark;
+
+  --font-sans: system-ui, -apple-system, 'Segoe UI', Roboto, 'Helvetica Neue', Arial, sans-serif;
+  --font-mono: ui-monospace, 'SF Mono', SFMono-Regular, Menlo, Consolas, 'Liberation Mono', monospace;
+
+  --space-1: 0.25rem;
+  --space-2: 0.5rem;
+  --space-3: 0.75rem;
+  --space-4: 1rem;
+  --space-5: 1.5rem;
+  --space-6: 2rem;
+  --space-7: 3rem;
+
+  --radius-sm: 8px;
+  --radius: 12px;
+  --radius-lg: 18px;
+
+  --sidebar-width: 264px;
+  --topbar-height: 60px;
+  --bottom-nav-height: 64px;
+
+  /* Light theme */
+  --bg: #f2f5fa;
+  --surface: #ffffff;
+  --surface-2: #f6f8fc;
+  --border: #dbe3ee;
+  --text: #0e1e33;
+  --text-muted: #4d5f78;
+  --link: #1553c4;
+
+  --primary: #1d5fd6;
+  --primary-hover: #164cb0;
+  --on-primary: #ffffff;
+
+  --navy: #0b1f3a;
+  --navy-2: #143a6b;
+  --on-navy: #eaf1fb;
+  --on-navy-muted: #a9bdd8;
+
+  --success: #146c43;
+  --success-bg: #e3f4eb;
+  --warning: #8a5300;
+  --warning-bg: #fff1d6;
+  --danger: #b3261e;
+  --danger-bg: #fdeceb;
+  --info: #1553c4;
+  --info-bg: #e6eefc;
+  --neutral: #435671;
+  --neutral-bg: #e9eef5;
+
+  --public: #1553c4;
+  --public-bg: #e6eefc;
+  --private: #5b34b5;
+  --private-bg: #eee8fb;
+  --proven: #146c43;
+  --proven-bg: #e3f4eb;
+
+  --focus: #1d5fd6;
+  --shadow: 0 1px 2px rgb(14 30 51 / 6%), 0 4px 16px rgb(14 30 51 / 6%);
+}
+
+@media (prefers-color-scheme: dark) {
+  :root {
+    --bg: #08121f;
+    --surface: #0f1f34;
+    --surface-2: #132840;
+    --border: #244260;
+    --text: #e8eef7;
+    --text-muted: #a3b4cb;
+    --link: #8db8ff;
+
+    --primary: #4b8dff;
+    --primary-hover: #74a6ff;
+    --on-primary: #06152a;
+
+    --success: #6fdba5;
+    --success-bg: #12362a;
+    --warning: #f5c56b;
+    --warning-bg: #3a2c0d;
+    --danger: #ff9b93;
+    --danger-bg: #3d1816;
+    --info: #8db8ff;
+    --info-bg: #14305a;
+    --neutral: #b4c3d8;
+    --neutral-bg: #1b3350;
+
+    --public: #8db8ff;
+    --public-bg: #14305a;
+    --private: #c2acff;
+    --private-bg: #2a1f52;
+    --proven: #6fdba5;
+    --proven-bg: #12362a;
+
+    --focus: #8db8ff;
+    --shadow: 0 1px 2px rgb(0 0 0 / 40%);
+  }
+}
