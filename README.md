@@ -56,13 +56,15 @@ This is the deployed Asset Passport contract (`contract/src/asset-passport.compa
 
 > **Screenshot:** Successful `compact compile` output showing the compiled Asset Passport circuits.
 >
-> `[INSERT COMPILE SCREENSHOT HERE]`
+> <img width="1005" height="711" alt="image" src="https://github.com/user-attachments/assets/4cd2d0f3-f5a8-4cc0-a0f7-bd7649ce3d52" />
+
 
 ### Preprod Contract Deployment
 
 > **Screenshot:** Midnight Preprod Explorer showing the deployed Asset Passport contract and contract address.
 >
-> `[INSERT DEPLOYMENT SCREENSHOT HERE]`
+> <img width="1920" height="1080" alt="image" src="https://github.com/user-attachments/assets/6997cc13-ff80-4031-aa1d-b6e7f2530785" />
+
 
 The Midnight Preprod Explorer shows:
 
