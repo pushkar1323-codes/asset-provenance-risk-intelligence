@@ -1,19 +1,19 @@
 import { useCallback, useEffect, useState } from 'react';
-import { parseHash, toHash, type ViewId } from './nav.js';
+import { parseRoute, toHash, type Route, type ViewId } from './nav.js';
 
 /** Minimal hash-based routing: no dependency, and reloads land on the same view. */
-export const useHashRoute = (): { view: ViewId; navigate: (id: ViewId) => void } => {
-  const [view, setView] = useState<ViewId>(() => parseHash(window.location.hash));
+export const useHashRoute = (): Route & { navigate: (id: ViewId, param?: string) => void } => {
+  const [route, setRoute] = useState<Route>(() => parseRoute(window.location.hash));
 
   useEffect(() => {
-    const onChange = () => setView(parseHash(window.location.hash));
+    const onChange = () => setRoute(parseRoute(window.location.hash));
     window.addEventListener('hashchange', onChange);
     return () => window.removeEventListener('hashchange', onChange);
   }, []);
 
-  const navigate = useCallback((id: ViewId) => {
-    window.location.hash = toHash(id);
+  const navigate = useCallback((id: ViewId, param?: string) => {
+    window.location.hash = toHash(id, param);
   }, []);
 
-  return { view, navigate };
+  return { ...route, navigate };
 };

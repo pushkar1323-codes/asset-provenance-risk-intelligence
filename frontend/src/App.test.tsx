@@ -18,6 +18,7 @@ describe('App shell', () => {
     vi.stubEnv('VITE_MIDNIGHT_NETWORK_ID', '');
     vi.stubEnv('VITE_ASSET_PASSPORT_CONTRACT_ADDRESS', '');
     vi.stubEnv('VITE_ZK_CONFIG_BASE_URL', '');
+    window.localStorage.clear();
     go('overview');
   });
 
@@ -53,39 +54,82 @@ describe('App shell', () => {
     expect(screen.queryByText(/deployed/i)).not.toBeInTheDocument();
   });
 
-  it('marks unavailable destinations as Soon in navigation', () => {
+  it('lists every destination in navigation with no placeholder markers', () => {
     render(<App />);
     const nav = within(primaryNav());
 
-    expect(nav.getByRole('link', { name: /register asset/i })).toBeInTheDocument();
-    expect(within(nav.getByRole('link', { name: /my assets/i })).getByText('Soon')).toBeInTheDocument();
-    expect(within(nav.getByRole('link', { name: /transfer ownership/i })).getByText('Soon')).toBeInTheDocument();
-    expect(within(nav.getByRole('link', { name: /risk intelligence/i })).getByText('Soon')).toBeInTheDocument();
+    for (const name of [/register asset/i, /my assets/i, /asset passport/i, /provenance/i, /risk intelligence/i, /transfer ownership/i, /retire asset/i]) {
+      expect(nav.getByRole('link', { name })).toBeInTheDocument();
+    }
+    expect(screen.queryByText('Soon')).not.toBeInTheDocument();
+    expect(screen.queryByText(/coming soon|not available yet/i)).not.toBeInTheDocument();
   });
 
-  it.each([
-    ['assets', /listing assets needs a way to read/i],
-    ['risk', /nothing is scored today/i],
-    ['transfer', /not wired into this application yet/i],
-    ['retire', /not wired into this application yet/i],
-    ['provenance', /does not record or read them yet/i]
-  ])('shows %s as unavailable and never fabricates data', (view, reason) => {
-    go(view);
+  it('shows an honest empty state for My Assets and never invents assets', () => {
+    go('assets');
     render(<App />);
 
-    expect(screen.getByText('Not available yet')).toBeInTheDocument();
-    expect(screen.getByText(reason)).toBeInTheDocument();
+    expect(screen.getByRole('heading', { name: 'My Assets' })).toBeInTheDocument();
+    expect(screen.getByText(/you have not registered or saved any assets/i)).toBeInTheDocument();
     expect(screen.queryByRole('table')).not.toBeInTheDocument();
-    expect(screen.queryByText(/VIN/)).not.toBeInTheDocument();
   });
 
-  it('keeps registration disabled and explains why while unconfigured', () => {
+  it.each(['passport', 'provenance', 'risk', 'transfer', 'retire'])(
+    'shows an asset picker with an empty state for %s when there are no assets',
+    (view) => {
+      go(view);
+      render(<App />);
+
+      expect(screen.getByRole('heading', { name: 'No assets yet' })).toBeInTheDocument();
+      expect(screen.getByRole('link', { name: /register an asset/i })).toHaveAttribute('href', '#/register');
+    }
+  );
+
+  it('reports an unknown asset id as not found', () => {
+    go(`passport/${'ab'.repeat(32)}`);
+    render(<App />);
+
+    expect(screen.getByRole('heading', { name: 'Asset not found' })).toBeInTheDocument();
+  });
+
+  it('keeps the form usable while unconfigured, but never enables on-chain registration', async () => {
     go('register');
     render(<App />);
 
-    expect(screen.getByLabelText(/asset identifier/i)).toBeDisabled();
-    expect(screen.getByRole('button', { name: /^review$/i })).toBeDisabled();
+    expect(screen.getByLabelText(/asset identifier/i)).toBeEnabled();
     expect(screen.getByText(/not configured for a network and contract yet/i)).toBeInTheDocument();
+
+    fireEvent.change(screen.getByLabelText(/asset identifier/i), { target: { value: 'VIN-DRAFT-0001' } });
+    fireEvent.click(screen.getByRole('button', { name: /^review$/i }));
+    await screen.findByRole('heading', { name: /review your registration/i });
+
+    expect(screen.getByRole('button', { name: /register asset/i })).toBeDisabled();
+  });
+
+  it('saves a draft without a wallet, lists it as a draft, and never reports it as registered', async () => {
+    go('register');
+    render(<App />);
+
+    fireEvent.change(screen.getByLabelText(/asset identifier/i), { target: { value: 'VIN-DRAFT-0002' } });
+    fireEvent.click(screen.getByRole('button', { name: /^review$/i }));
+    await screen.findByRole('heading', { name: /review your registration/i });
+    fireEvent.click(screen.getByRole('button', { name: /save as draft/i }));
+
+    expect(await screen.findByRole('heading', { name: /draft saved on this device/i })).toBeInTheDocument();
+    expect(screen.queryByText(/asset registered/i)).not.toBeInTheDocument();
+
+    const stored = JSON.parse(window.localStorage.getItem('asset-passport.local-assets.v1') ?? '[]');
+    expect(stored).toHaveLength(1);
+    expect(stored[0]).toMatchObject({ identifier: 'VIN-DRAFT-0002', status: 'draft' });
+    expect(JSON.stringify(stored)).not.toMatch(/transactionId/);
+
+    // The draft opens its passport, which says plainly that nothing is on-chain.
+    fireEvent.click(screen.getByRole('link', { name: /open draft/i }));
+    expect(await screen.findByRole('heading', { name: 'Asset Passport' })).toBeInTheDocument();
+    expect(screen.getByText(/this asset is a draft/i)).toBeInTheDocument();
+    expect(screen.getByText(/no ownership has been recorded/i)).toBeInTheDocument();
+    expect(screen.getByText('None loaded')).toBeInTheDocument();
+    expect(screen.getByText('Not assessed')).toBeInTheDocument();
   });
 
   it('turns wallet connection off while unconfigured, even when a wallet is present', () => {

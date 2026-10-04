@@ -1,4 +1,7 @@
 import type { EnvironmentCheck } from '../lib/contract/env.js';
+import type { LocalAsset } from '../lib/assets/assetStore.js';
+import { categoryLabel } from '../lib/assets/labels.js';
+import { AssetStatusBadge } from '../components/AssetStatusBadge.js';
 import type { UseWalletResult } from '../lib/wallet/useWallet.js';
 import { formatNetworkName, shortenMiddle } from '../lib/ui/format.js';
 import { toHash, type IconName } from '../lib/nav/nav.js';
@@ -11,22 +14,22 @@ const PILLARS: readonly Pillar[] = [
   {
     icon: 'clock',
     title: 'Provenance',
-    text: "Record and follow an asset's lifecycle history.",
-    badge: 'Coming soon',
-    tone: 'neutral'
+    text: "Follow an asset's lifecycle history, from the first draft to registration.",
+    badge: 'Events from this browser',
+    tone: 'info'
   },
   {
     icon: 'shieldCheck',
     title: 'Privacy-preserving verification',
-    text: 'Registration already proves ownership-key knowledge without revealing the key. Credential checks come later.',
-    badge: 'Partly available',
+    text: 'Registration proves ownership-key knowledge without revealing the key.',
+    badge: 'Registration only',
     tone: 'info'
   },
   {
     icon: 'chart',
     title: 'Risk Intelligence',
     text: 'Off-chain analysis referenced on-chain by a commitment and a coarse tier. Analysis never overrides contract state.',
-    badge: 'Coming soon',
+    badge: 'No assessments loaded',
     tone: 'neutral'
   },
   {
@@ -38,19 +41,21 @@ const PILLARS: readonly Pillar[] = [
   }
 ];
 
-const HOW_IT_WORKS: readonly { title: string; text: string; soon?: boolean }[] = [
-  { title: 'Register', text: 'Enter an identifier and category.' },
+const HOW_IT_WORKS: readonly { title: string; text: string }[] = [
+  { title: 'Register', text: 'Enter an identifier and category, or save a draft first.' },
   { title: 'Prove', text: 'A zero-knowledge proof is created for the registration.' },
   { title: 'Record on Midnight', text: 'The public record and commitments are written to the ledger.' },
-  { title: 'Manage lifecycle', text: 'Transfer, retire, credentials and provenance.', soon: true }
+  { title: 'Review', text: 'Open the passport, provenance and risk views for each asset.' }
 ];
 
 export const OverviewView = ({
   envCheck,
-  wallet
+  wallet,
+  assets
 }: {
   envCheck: EnvironmentCheck;
   wallet: UseWalletResult;
+  assets: readonly LocalAsset[];
 }) => {
   const connected = wallet.state.status === 'connected';
   return (
@@ -127,6 +132,42 @@ export const OverviewView = ({
         </div>
       </section>
 
+      <section className="stack" aria-labelledby="recent-title">
+        <div className="card-head">
+          <h2 id="recent-title" className="section-title">
+            Your assets
+          </h2>
+          {assets.length > 0 && <a href={toHash('assets')}>View all</a>}
+        </div>
+        {assets.length === 0 ? (
+          <div className="card stack-sm">
+            <p className="muted">
+              You have no assets in this browser yet. Save a draft without a wallet, or register an asset on
+              Midnight.
+            </p>
+            <div className="actions">
+              <a className="btn btn-secondary" href={toHash('register')}>
+                Add an asset
+              </a>
+            </div>
+          </div>
+        ) : (
+          <ul className="card pick-list">
+            {assets.slice(0, 3).map((asset) => (
+              <li key={asset.assetIdHex}>
+                <a className="pick-link" href={toHash('passport', asset.assetIdHex)}>
+                  <span className="pick-main">
+                    <strong>{asset.identifier}</strong>
+                    <small className="muted">{categoryLabel(asset.category)}</small>
+                  </span>
+                  <AssetStatusBadge status={asset.status} />
+                </a>
+              </li>
+            ))}
+          </ul>
+        )}
+      </section>
+
       <section className="stack" aria-labelledby="pillars-title">
         <h2 id="pillars-title" className="section-title">
           What Asset Passport is for
@@ -158,7 +199,6 @@ export const OverviewView = ({
               <div>
                 <h3>{step.title}</h3>
                 <p className="muted">{step.text}</p>
-                {step.soon && <StatusBadge tone="neutral">Coming soon</StatusBadge>}
               </div>
             </li>
           ))}

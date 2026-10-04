@@ -65,7 +65,7 @@ export const IDENTIFIER_LIMITATION =
   'Hashing the identifier does not make it secret. If someone already knows a VIN or other identifier, they can compute its SHA-256 hash and check whether that asset is registered.';
 
 export const KEY_HANDLING_NOTE =
-  "The ownership key is generated in your browser and kept in this browser's local app storage, managed by the Midnight.js private-state provider. The app currently protects that store with a fixed built-in password, which is not a secret, so do not treat it as protected against anyone with access to your browser profile. There is no backup or export yet: if this browser's data is cleared, this app can no longer prove ownership of the asset.";
+  "The ownership key is generated in your browser and kept in this browser's local app storage. The app currently protects that store with a fixed built-in password, which is not a secret, so do not treat it as protected against anyone with access to your browser profile. There is no backup or export yet: if this browser's data is cleared, this app can no longer prove ownership of the asset.";
 
 export const REGISTRATION_LIMITATION =
   'Registration is a claim, not a verification. The contract does not check real-world ownership of a vehicle; the first valid registration for an identifier is the one recorded.';

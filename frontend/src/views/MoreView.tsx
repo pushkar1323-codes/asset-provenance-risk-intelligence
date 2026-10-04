@@ -11,7 +11,6 @@ export const MoreView = () => (
           <a href={toHash(item.id)} className="more-link">
             <Icon name={item.icon} />
             <span>{item.label}</span>
-            {!item.available && <span className="soon">Soon</span>}
             <Icon name="arrowRight" size={18} />
           </a>
         </li>

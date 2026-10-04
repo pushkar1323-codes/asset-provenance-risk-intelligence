@@ -8,6 +8,8 @@ import {
   KEY_HANDLING_NOTE,
   REGISTRATION_LIMITATION
 } from '../lib/content/privacy.js';
+import { ASSET_CATEGORIES, categoryLabel } from '../lib/assets/labels.js';
+import type { LocalAssetStatus } from '../lib/assets/assetStore.js';
 import { toHash } from '../lib/nav/nav.js';
 import { Callout } from './ui/Callout.js';
 import { CopyField } from './ui/CopyField.js';
@@ -15,11 +17,6 @@ import { DisclosureColumns } from './ui/DisclosureColumns.js';
 import { Icon } from './ui/Icon.js';
 import { StepIndicator } from './ui/StepIndicator.js';
 
-const ASSET_CATEGORIES: ReadonlyArray<{ readonly value: number; readonly label: string }> = [
-  { value: 1, label: 'Passenger vehicle' },
-  { value: 2, label: 'Commercial vehicle' },
-  { value: 3, label: 'Motorcycle' }
-];
 
 /** Progress the application can genuinely observe while submitting. */
 export type RegisterProgress = 'preparing' | 'proving';
@@ -30,23 +27,38 @@ type Flow =
   | { readonly step: 'details' }
   | { readonly step: 'review'; readonly assetIdHash: string | null }
   | { readonly step: 'processing'; readonly progress: RegisterProgress }
-  | { readonly step: 'result'; readonly result: RegisterAssetResult; readonly assetIdHash: string | null };
+  | { readonly step: 'result'; readonly result: RegisterAssetResult; readonly assetIdHash: string | null }
+  | { readonly step: 'draft'; readonly outcome: SaveDraftOutcome; readonly assetIdHash: string | null };
+
+/** What happened when the user chose to keep the details as a local draft. */
+export type SaveDraftOutcome =
+  | { readonly kind: 'saved'; readonly assetIdHex: string; readonly persisted: boolean }
+  | { readonly kind: 'exists'; readonly assetIdHex: string; readonly status: LocalAssetStatus }
+  | { readonly kind: 'failure' };
 
 type RegisterAssetFormProps = {
-  readonly disabled: boolean;
-  readonly disabledReason?: string;
+  /** Whether the app can currently submit the registration to the contract. */
+  readonly canSubmit: boolean;
+  /** Shown when `canSubmit` is false, explaining what is missing. */
+  readonly unavailableReason?: string;
+  /** Values to start with, for example when registering a saved draft. */
+  readonly initial?: { readonly identifier: string; readonly category: number };
   readonly onSubmit: (
     input: RegisterAssetInput,
     onProgress?: (progress: RegisterProgress) => void
   ) => Promise<RegisterAssetResult>;
+  readonly onSaveDraft: (input: RegisterAssetInput) => Promise<SaveDraftOutcome>;
 };
 
-const categoryLabel = (value: number): string =>
-  ASSET_CATEGORIES.find((c) => c.value === value)?.label ?? `Category ${value}`;
-
-export const RegisterAssetForm = ({ disabled, disabledReason, onSubmit }: RegisterAssetFormProps) => {
-  const [assetIdentifier, setAssetIdentifier] = useState('');
-  const [assetCategory, setAssetCategory] = useState(ASSET_CATEGORIES[0].value);
+export const RegisterAssetForm = ({
+  canSubmit,
+  unavailableReason,
+  initial,
+  onSubmit,
+  onSaveDraft
+}: RegisterAssetFormProps) => {
+  const [assetIdentifier, setAssetIdentifier] = useState(initial?.identifier ?? '');
+  const [assetCategory, setAssetCategory] = useState(initial?.category ?? ASSET_CATEGORIES[0].value);
   const [fieldErrors, setFieldErrors] = useState<Record<string, string>>({});
   const [flow, setFlow] = useState<Flow>({ step: 'details' });
 
@@ -78,6 +90,11 @@ export const RegisterAssetForm = ({ disabled, disabledReason, onSubmit }: Regist
     setFlow({ step: 'result', result, assetIdHash });
   };
 
+  const saveDraft = async (assetIdHash: string | null) => {
+    const outcome = await onSaveDraft(input);
+    setFlow({ step: 'draft', outcome, assetIdHash });
+  };
+
   const startOver = () => {
     setAssetIdentifier('');
     setAssetCategory(ASSET_CATEGORIES[0].value);
@@ -97,9 +114,10 @@ export const RegisterAssetForm = ({ disabled, disabledReason, onSubmit }: Regist
               <p className="muted">Enter the identifier and category of the asset you want to register.</p>
             </div>
 
-            {disabled && disabledReason && (
-              <Callout icon="info" title="Registration is not available yet">
-                {disabledReason}
+            {!canSubmit && unavailableReason && (
+              <Callout icon="info" title="You can prepare a draft now">
+                Registering on Midnight is not available right now: {unavailableReason} You can still save the
+                details as a draft on this device.
               </Callout>
             )}
 
@@ -112,7 +130,6 @@ export const RegisterAssetForm = ({ disabled, disabledReason, onSubmit }: Regist
                 spellCheck={false}
                 value={assetIdentifier}
                 onChange={(e) => setAssetIdentifier(e.target.value)}
-                disabled={disabled}
                 aria-invalid={Boolean(fieldErrors.assetIdentifier)}
                 aria-describedby="assetIdentifier-help"
               />
@@ -128,7 +145,6 @@ export const RegisterAssetForm = ({ disabled, disabledReason, onSubmit }: Regist
                 id="assetCategory"
                 value={assetCategory}
                 onChange={(e) => setAssetCategory(Number(e.target.value))}
-                disabled={disabled}
               >
                 {ASSET_CATEGORIES.map((c) => (
                   <option key={c.value} value={c.value}>
@@ -140,7 +156,7 @@ export const RegisterAssetForm = ({ disabled, disabledReason, onSubmit }: Regist
             </div>
 
             <div>
-              <button type="submit" className="btn btn-primary btn-block" disabled={disabled}>
+              <button type="submit" className="btn btn-primary btn-block">
                 Review
               </button>
             </div>
@@ -190,14 +206,23 @@ export const RegisterAssetForm = ({ disabled, disabledReason, onSubmit }: Regist
             </Callout>
           </div>
 
+          {!canSubmit && unavailableReason && (
+            <Callout icon="info" title="Registering on Midnight is not available right now">
+              {unavailableReason}
+            </Callout>
+          )}
+
           <div className="actions">
             <button type="button" className="btn btn-secondary" onClick={() => setFlow({ step: 'details' })}>
               Back
             </button>
+            <button type="button" className="btn btn-secondary" onClick={() => void saveDraft(flow.assetIdHash)}>
+              Save as draft
+            </button>
             <button
               type="button"
               className="btn btn-primary"
-              disabled={disabled}
+              disabled={!canSubmit}
               onClick={() => void submit(flow.assetIdHash)}
             >
               Register asset
@@ -232,8 +257,7 @@ export const RegisterAssetForm = ({ disabled, disabledReason, onSubmit }: Regist
             </li>
           </ol>
           <p className="field-help">
-            The wallet and SDK do not report progress inside the second step, so it is shown as one step. This
-            can take a while.
+            Progress inside the second step is not reported, so it is shown as one step. This can take a while.
           </p>
         </div>
       )}
@@ -258,15 +282,14 @@ export const RegisterAssetForm = ({ disabled, disabledReason, onSubmit }: Regist
             <button type="button" className="btn btn-primary" onClick={startOver}>
               Register another
             </button>
-            <button type="button" className="btn btn-secondary" disabled aria-describedby="passport-soon">
+            <a className="btn btn-secondary" href={toHash('passport', flow.result.assetIdHex)}>
               View passport
-            </button>
+            </a>
           </div>
-          <p id="passport-soon" className="field-help">
-            Viewing a passport is not available yet.
-          </p>
         </div>
       )}
+
+      {flow.step === 'draft' && <DraftResultCard outcome={flow.outcome} onBack={() => setFlow({ step: 'review', assetIdHash: flow.assetIdHash })} onStartOver={startOver} />}
 
       {flow.step === 'result' && flow.result.kind === 'failure' && (
         <FailureCard
@@ -276,6 +299,73 @@ export const RegisterAssetForm = ({ disabled, disabledReason, onSubmit }: Regist
         />
       )}
     </section>
+  );
+};
+
+const DraftResultCard = ({
+  outcome,
+  onBack,
+  onStartOver
+}: {
+  outcome: SaveDraftOutcome;
+  onBack: () => void;
+  onStartOver: () => void;
+}) => {
+  if (outcome.kind === 'saved') {
+    return (
+      <div className="card stack result" role="status">
+        <div className="result-head">
+          <span className="result-icon">
+            <Icon name="check" size={28} />
+          </span>
+          <div>
+            <h2 className="card-title">Draft saved on this device</h2>
+            <p className="muted">
+              Nothing has been registered on Midnight. You can register it later from its passport.
+              {!outcome.persisted &&
+                ' This browser did not allow the draft to be stored, so it will be lost when you close the page.'}
+            </p>
+          </div>
+        </div>
+        <div className="actions">
+          <a className="btn btn-primary" href={toHash('passport', outcome.assetIdHex)}>
+            Open draft
+          </a>
+          <button type="button" className="btn btn-secondary" onClick={onStartOver}>
+            Add another
+          </button>
+        </div>
+      </div>
+    );
+  }
+  return (
+    <div className="card stack result result-failure" role="alert">
+      <div className="result-head">
+        <span className="result-icon">
+          <Icon name="alert" size={28} />
+        </span>
+        <div>
+          <h2 className="card-title">
+            {outcome.kind === 'exists' ? 'This asset is already in your list' : 'The draft could not be saved'}
+          </h2>
+          <p>
+            {outcome.kind === 'exists'
+              ? 'An asset with this identifier is already saved in this browser, so a second copy was not added.'
+              : 'This browser could not save the draft. Check that site storage is allowed, then try again.'}
+          </p>
+        </div>
+      </div>
+      <div className="actions">
+        {outcome.kind === 'exists' && (
+          <a className="btn btn-primary" href={toHash('passport', outcome.assetIdHex)}>
+            Open existing asset
+          </a>
+        )}
+        <button type="button" className="btn btn-secondary" onClick={onBack}>
+          Back to review
+        </button>
+      </div>
+    </div>
   );
 };
 

@@ -32,8 +32,11 @@ const getInjectedWallet = (walletId: string): InjectedWalletApi => {
 };
 
 export class WalletNotFoundError extends Error {
+  readonly walletId: string;
+
   constructor(walletId: string) {
-    super(`No wallet extension found for "${walletId}". Is it installed and enabled?`);
+    super('That wallet was not found. Make sure its browser extension is installed and enabled, then reload this page.');
+    this.walletId = walletId;
     this.name = 'WalletNotFoundError';
   }
 }

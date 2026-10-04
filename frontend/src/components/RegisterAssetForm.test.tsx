@@ -3,6 +3,8 @@ import { describe, expect, it, vi } from 'vitest';
 import { RegisterAssetForm } from './RegisterAssetForm.js';
 import type { RegisterAssetResult } from '../lib/contract/registerAsset.js';
 
+const onSaveDraft = vi.fn();
+
 const fillAndReview = async (identifier = '1HGCM82633A123456') => {
   fireEvent.change(screen.getByLabelText(/asset identifier/i), { target: { value: identifier } });
   fireEvent.click(screen.getByRole('button', { name: /^review$/i }));
@@ -10,19 +12,67 @@ const fillAndReview = async (identifier = '1HGCM82633A123456') => {
 };
 
 describe('RegisterAssetForm', () => {
-  it('disables the form and shows the reason when disabled', () => {
+  it('keeps the details editable and offers a draft when registering is unavailable', async () => {
+    const onSubmit = vi.fn();
+    onSaveDraft.mockResolvedValue({ kind: 'saved', assetIdHex: 'ab'.repeat(32), persisted: true });
     render(
-      <RegisterAssetForm disabled disabledReason="Connect a wallet to continue." onSubmit={vi.fn()} />
+      <RegisterAssetForm
+        canSubmit={false}
+        unavailableReason="Connect a wallet to continue."
+        onSubmit={onSubmit}
+        onSaveDraft={onSaveDraft}
+      />
     );
 
-    expect(screen.getByText('Connect a wallet to continue.')).toBeInTheDocument();
-    expect(screen.getByLabelText(/asset identifier/i)).toBeDisabled();
-    expect(screen.getByRole('button', { name: /^review$/i })).toBeDisabled();
+    expect(screen.getByText(/connect a wallet to continue/i)).toBeInTheDocument();
+    expect(screen.getByLabelText(/asset identifier/i)).toBeEnabled();
+    await fillAndReview();
+
+    expect(screen.getByRole('button', { name: /register asset/i })).toBeDisabled();
+    fireEvent.click(screen.getByRole('button', { name: /save as draft/i }));
+
+    expect(await screen.findByRole('heading', { name: /draft saved on this device/i })).toBeInTheDocument();
+    expect(screen.getByText(/nothing has been registered on midnight/i)).toBeInTheDocument();
+    expect(screen.queryByText(/asset registered/i)).not.toBeInTheDocument();
+    expect(onSubmit).not.toHaveBeenCalled();
+    expect(onSaveDraft).toHaveBeenCalledWith({ assetIdentifier: '1HGCM82633A123456', assetCategory: 1 });
+  });
+
+  it('says so when a draft already exists instead of adding a duplicate', async () => {
+    onSaveDraft.mockResolvedValue({ kind: 'exists', assetIdHex: 'cd'.repeat(32), status: 'draft' });
+    render(<RegisterAssetForm canSubmit onSubmit={vi.fn()} onSaveDraft={onSaveDraft} />);
+    await fillAndReview();
+    fireEvent.click(screen.getByRole('button', { name: /save as draft/i }));
+
+    expect(await screen.findByRole('heading', { name: /already in your list/i })).toBeInTheDocument();
+    expect(screen.getByRole('link', { name: /open existing asset/i })).toBeInTheDocument();
+  });
+
+  it('warns when the browser would not store the draft', async () => {
+    onSaveDraft.mockResolvedValue({ kind: 'saved', assetIdHex: 'ab'.repeat(32), persisted: false });
+    render(<RegisterAssetForm canSubmit onSubmit={vi.fn()} onSaveDraft={onSaveDraft} />);
+    await fillAndReview();
+    fireEvent.click(screen.getByRole('button', { name: /save as draft/i }));
+
+    expect(await screen.findByText(/did not allow the draft to be stored/i)).toBeInTheDocument();
+  });
+
+  it('starts from provided values, for registering a saved draft', () => {
+    render(
+      <RegisterAssetForm
+        canSubmit
+        initial={{ identifier: 'SAVED-DRAFT-1', category: 2 }}
+        onSubmit={vi.fn()}
+        onSaveDraft={onSaveDraft}
+      />
+    );
+    expect(screen.getByLabelText(/asset identifier/i)).toHaveValue('SAVED-DRAFT-1');
+    expect(screen.getByLabelText(/category/i)).toHaveValue('2');
   });
 
   it('blocks the review step and shows an error when the identifier is too short', async () => {
     const onSubmit = vi.fn();
-    render(<RegisterAssetForm disabled={false} onSubmit={onSubmit} />);
+    render(<RegisterAssetForm canSubmit onSubmit={onSubmit} onSaveDraft={onSaveDraft} />);
 
     fireEvent.change(screen.getByLabelText(/asset identifier/i), { target: { value: 'a' } });
     fireEvent.click(screen.getByRole('button', { name: /^review$/i }));
@@ -34,7 +84,7 @@ describe('RegisterAssetForm', () => {
 
   it('review step separates public, private and proven information without calling the wallet', async () => {
     const onSubmit = vi.fn();
-    render(<RegisterAssetForm disabled={false} onSubmit={onSubmit} />);
+    render(<RegisterAssetForm canSubmit onSubmit={onSubmit} onSaveDraft={onSaveDraft} />);
     await fillAndReview();
 
     expect(screen.getByRole('heading', { name: /public/i })).toBeInTheDocument();
@@ -51,7 +101,7 @@ describe('RegisterAssetForm', () => {
       assetIdHex: 'abcd1234',
       transactionId: 'tx-999'
     } satisfies RegisterAssetResult);
-    render(<RegisterAssetForm disabled={false} onSubmit={onSubmit} />);
+    render(<RegisterAssetForm canSubmit onSubmit={onSubmit} onSaveDraft={onSaveDraft} />);
     await fillAndReview();
 
     fireEvent.click(screen.getByRole('button', { name: /register asset/i }));
@@ -60,8 +110,7 @@ describe('RegisterAssetForm', () => {
     expect(await screen.findByText('tx-999')).toBeInTheDocument();
     expect(screen.getByText('abcd1234')).toBeInTheDocument();
     expect(screen.getByRole('heading', { name: /asset registered/i })).toBeInTheDocument();
-    // Passport viewing is not implemented, so the control is present but disabled.
-    expect(screen.getByRole('button', { name: /view passport/i })).toBeDisabled();
+    expect(screen.getByRole('link', { name: /view passport/i })).toHaveAttribute('href', '#/passport/abcd1234');
   });
 
   it('shows the processing state, reporting only progress the app can observe', async () => {
@@ -73,13 +122,13 @@ describe('RegisterAssetForm', () => {
           finish = resolve;
         })
     );
-    render(<RegisterAssetForm disabled={false} onSubmit={onSubmit} />);
+    render(<RegisterAssetForm canSubmit onSubmit={onSubmit} onSaveDraft={onSaveDraft} />);
     await fillAndReview();
     fireEvent.click(screen.getByRole('button', { name: /register asset/i }));
 
     expect(await screen.findByRole('heading', { name: /registering your asset/i })).toBeInTheDocument();
     expect(screen.getByText(/keep this page open/i)).toBeInTheDocument();
-    expect(screen.getByText(/do not report progress/i)).toBeInTheDocument();
+    expect(screen.getByText(/progress inside the second step is not reported/i)).toBeInTheDocument();
 
     finish({ kind: 'success', assetIdHex: 'aa', transactionId: 'bb' });
     expect(await screen.findByRole('heading', { name: /asset registered/i })).toBeInTheDocument();
@@ -92,7 +141,7 @@ describe('RegisterAssetForm', () => {
       message: 'Asset is already registered',
       requiresLiveWalletVerification: false
     } satisfies RegisterAssetResult);
-    render(<RegisterAssetForm disabled={false} onSubmit={onSubmit} />);
+    render(<RegisterAssetForm canSubmit onSubmit={onSubmit} onSaveDraft={onSaveDraft} />);
     await fillAndReview();
     fireEvent.click(screen.getByRole('button', { name: /register asset/i }));
 
@@ -112,7 +161,7 @@ describe('RegisterAssetForm', () => {
       message: 'User rejected the request',
       requiresLiveWalletVerification: false
     } satisfies RegisterAssetResult);
-    render(<RegisterAssetForm disabled={false} onSubmit={onSubmit} />);
+    render(<RegisterAssetForm canSubmit onSubmit={onSubmit} onSaveDraft={onSaveDraft} />);
     await fillAndReview();
     fireEvent.click(screen.getByRole('button', { name: /register asset/i }));
 
@@ -121,7 +170,7 @@ describe('RegisterAssetForm', () => {
   });
 
   it('never renders a field for private witness values', () => {
-    render(<RegisterAssetForm disabled={false} onSubmit={vi.fn()} />);
+    render(<RegisterAssetForm canSubmit onSubmit={vi.fn()} onSaveDraft={onSaveDraft} />);
     expect(screen.queryByLabelText(/secret/i)).not.toBeInTheDocument();
     expect(screen.queryByLabelText(/private key/i)).not.toBeInTheDocument();
   });

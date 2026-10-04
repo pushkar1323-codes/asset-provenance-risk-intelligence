@@ -56,7 +56,6 @@ export const AppShell = ({ view, wallet, expectedNetworkId, connectDisabledReaso
                 >
                   <Icon name={item.icon} />
                   <span>{item.label}</span>
-                  {!item.available && <span className="soon">Soon</span>}
                 </a>
               </li>
             ))}

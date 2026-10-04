@@ -190,17 +190,6 @@
     font-weight: 700;
     background: var(--navy-2);
   }
-  .soon {
-    margin-left: auto;
-    padding: 1px 8px;
-    font-size: 0.6875rem;
-    font-weight: 700;
-    letter-spacing: 0.03em;
-    text-transform: uppercase;
-    color: var(--on-navy-muted);
-    border: 1px solid rgb(234 241 251 / 30%);
-    border-radius: 999px;
-  }
 
   .topbar {
     padding-left: var(--space-6);
@@ -239,14 +228,3 @@
   }
 }
 
-/* Sidebar "Soon" badge inside the mobile More list uses the light theme */
-.more-link .soon {
-  margin-left: auto;
-  padding: 1px 8px;
-  font-size: 0.6875rem;
-  font-weight: 700;
-  text-transform: uppercase;
-  color: var(--neutral);
-  background: var(--neutral-bg);
-  border-radius: 999px;
-}

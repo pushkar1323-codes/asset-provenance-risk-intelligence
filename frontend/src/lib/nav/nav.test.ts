@@ -1,16 +1,30 @@
 import { describe, expect, it } from 'vitest';
-import { BOTTOM_NAV_IDS, NAV_ITEMS, getNavItem, parseHash, toHash } from './nav.js';
+import { BOTTOM_NAV_IDS, NAV_ITEMS, getNavItem, parseHash, parseRoute, toHash } from './nav.js';
 
 describe('navigation model', () => {
-  it('marks only functionality that exists as available', () => {
-    const available = NAV_ITEMS.filter((i) => i.available).map((i) => i.id);
-    expect(available).toEqual(['overview', 'register', 'privacy', 'settings']);
+  it('lists every destination the application implements', () => {
+    expect(NAV_ITEMS.map((i) => i.id)).toEqual([
+      'overview',
+      'register',
+      'assets',
+      'passport',
+      'provenance',
+      'risk',
+      'transfer',
+      'retire',
+      'privacy',
+      'settings'
+    ]);
   });
 
-  it('gives every unavailable destination a plain-language reason', () => {
-    for (const item of NAV_ITEMS.filter((i) => !i.available)) {
-      expect(item.unavailableReason, item.id).toBeTruthy();
-    }
+  it('marks the per-asset destinations as asset-scoped', () => {
+    expect(NAV_ITEMS.filter((i) => i.assetScoped).map((i) => i.id)).toEqual([
+      'passport',
+      'provenance',
+      'risk',
+      'transfer',
+      'retire'
+    ]);
   });
 
   it('parses hashes and falls back to the overview for unknown routes', () => {
@@ -19,6 +33,14 @@ describe('navigation model', () => {
     expect(parseHash('')).toBe('overview');
     expect(parseHash('#/does-not-exist')).toBe('overview');
     expect(toHash('privacy')).toBe('#/privacy');
+  });
+
+  it('parses and builds routes that carry an asset id', () => {
+    const id = 'ab'.repeat(32);
+    expect(parseRoute(`#/passport/${id}`)).toEqual({ view: 'passport', param: id });
+    expect(parseRoute('#/passport')).toEqual({ view: 'passport', param: null });
+    expect(parseRoute('#/nope/abc')).toEqual({ view: 'overview', param: null });
+    expect(toHash('passport', id)).toBe(`#/passport/${id}`);
   });
 
   it('keeps the mobile bottom bar to five destinations that all resolve', () => {

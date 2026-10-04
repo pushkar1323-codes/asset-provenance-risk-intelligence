@@ -36,17 +36,29 @@ const PROOF = /(proof server|prover|proving|zk config|zero-knowledge proof)/i;
 const NETWORK =
   /(failed to fetch|networkerror|network request|timed? ?out|websocket|econnrefused|unreachable|indexer)/i;
 
+/**
+ * Reduces a raw error message to something safe to show in the collapsed
+ * technical details: file paths and module locations are removed and the
+ * length is capped. The full original is logged for developers instead.
+ */
+export const sanitizeTechnicalMessage = (raw: string): string => {
+  const withoutPaths = raw
+    .replace(/WalletProviderAdapter\.\w+:?\s*/g, '')
+    .replace(/(?:[A-Za-z]:)?(?:[\\/][\w.@~-]+){2,}(?::\d+(?::\d+)?)?/g, '[path removed]')
+    .replace(/\n\s*at\s+.+/g, '')
+    .trim();
+  return withoutPaths.length > 300 ? `${withoutPaths.slice(0, 300)}…` : withoutPaths;
+};
+
+const STEP_LABELS: Record<RegisterAssetFailure['stage'], string> = {
+  preparing: 'Preparing the registration',
+  connecting: 'Connecting to the contract',
+  submitting: 'Proving and submitting'
+};
+
 export const describeRegisterFailure = (failure: RegisterAssetFailure): FailureView => {
   const raw = failure.message;
-  const technicalDetail = [
-    `Stage: ${failure.stage}`,
-    `Message: ${raw}`,
-    failure.requiresLiveWalletVerification
-      ? 'Note: raised inside the wallet adapter, which has not yet been exercised against a live wallet.'
-      : null
-  ]
-    .filter((line): line is string => line !== null)
-    .join('\n');
+  const technicalDetail = [`Step: ${STEP_LABELS[failure.stage]}`, `Message: ${sanitizeTechnicalMessage(raw)}`].join('\n');
 
   const make = (
     category: FailureCategory,

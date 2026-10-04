@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { describeRegisterFailure } from './errorMessages.js';
+import { describeRegisterFailure, sanitizeTechnicalMessage } from './errorMessages.js';
 import type { RegisterAssetFailure } from './registerAsset.js';
 
 const failure = (
@@ -35,7 +35,7 @@ describe('describeRegisterFailure', () => {
     const view = describeRegisterFailure(failure('something odd', 'preparing'));
     expect(view.category).toBe('unexpected');
     expect(view.technicalDetail).toContain('something odd');
-    expect(view.technicalDetail).toContain('Stage: preparing');
+    expect(view.technicalDetail).toContain('Step: Preparing the registration');
   });
 
   it('does not claim that nothing was recorded after an unexpected failure', () => {
@@ -43,9 +43,20 @@ describe('describeRegisterFailure', () => {
     expect(view.message).not.toMatch(/nothing (was|is known)/i);
   });
 
-  it('flags adapter-originated failures in the technical details only', () => {
-    const view = describeRegisterFailure(failure('WalletProviderAdapter.submitTx: no identifiers', 'submitting', true));
-    expect(view.technicalDetail).toMatch(/wallet adapter/i);
+  it('keeps internal class names and file paths out of the technical details', () => {
+    const view = describeRegisterFailure(
+      failure('WalletProviderAdapter.submitTx: no identifiers at /home/dev/app/node_modules/pkg/index.js:10:5', 'submitting', true)
+    );
+    expect(view.technicalDetail).not.toMatch(/WalletProviderAdapter/);
+    expect(view.technicalDetail).not.toMatch(/node_modules|\/home\//);
+    expect(view.technicalDetail).toContain('no identifiers');
     expect(view.message).not.toMatch(/adapter/i);
+  });
+
+  it('removes stack frames and caps very long messages', () => {
+    const long = `boom\n    at fn (/srv/x/y.js:1:1)\n${'x'.repeat(500)}`;
+    const cleaned = sanitizeTechnicalMessage(long);
+    expect(cleaned).not.toContain('/srv/');
+    expect(cleaned.length).toBeLessThanOrEqual(301);
   });
 });
