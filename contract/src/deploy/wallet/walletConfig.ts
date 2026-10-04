@@ -25,6 +25,21 @@ export class MissingWalletConfigurationError extends Error {
   }
 }
 
+/**
+ * Thrown when an endpoint variable is set but uses the wrong URL scheme for
+ * the component that consumes it. Only the variable name and the scheme are
+ * reported, never the full value.
+ */
+export class InvalidWalletConfigurationError extends Error {
+  constructor(
+    readonly variable: string,
+    problem: string
+  ) {
+    super(`${variable} is invalid: ${problem}`);
+    this.name = 'InvalidWalletConfigurationError';
+  }
+}
+
 export class MissingWalletSeedError extends Error {
   constructor() {
     super(
@@ -43,8 +58,58 @@ const REQUIRED_NETWORK_KEYS = [
 ] as const;
 
 /**
+ * Each endpoint is consumed by a different client, and each client needs a
+ * specific scheme. Values are validated as written and never rewritten:
+ *   - MIDNIGHT_INDEXER_URL     GraphQL over HTTP(S).
+ *   - MIDNIGHT_INDEXER_WS_URL  GraphQL subscriptions over WS(S).
+ *   - MIDNIGHT_RELAY_URL       The node's WebSocket endpoint: the Wallet
+ *                              SDK hands it to a Polkadot WsProvider, which
+ *                              accepts only ws:// or wss://. The node's
+ *                              HTTP RPC address is a different endpoint and
+ *                              is not accepted here.
+ */
+const ENDPOINT_RULES: ReadonlyArray<{
+  readonly key: (typeof REQUIRED_NETWORK_KEYS)[number];
+  readonly protocols: readonly string[];
+  readonly example: string;
+}> = [
+  {
+    key: 'MIDNIGHT_INDEXER_URL',
+    protocols: ['http:', 'https:'],
+    example: 'https://indexer.preprod.midnight.network/api/v4/graphql'
+  },
+  {
+    key: 'MIDNIGHT_INDEXER_WS_URL',
+    protocols: ['ws:', 'wss:'],
+    example: 'wss://indexer.preprod.midnight.network/api/v4/graphql/ws'
+  },
+  {
+    key: 'MIDNIGHT_RELAY_URL',
+    protocols: ['ws:', 'wss:'],
+    example: 'wss://rpc.preprod.midnight.network'
+  }
+];
+
+const validateEndpoint = (rule: (typeof ENDPOINT_RULES)[number], value: string): void => {
+  let protocol: string;
+  try {
+    protocol = new URL(value).protocol;
+  } catch {
+    throw new InvalidWalletConfigurationError(rule.key, `it is not a valid URL. Expected something like ${rule.example}.`);
+  }
+  if (!rule.protocols.includes(protocol)) {
+    const allowed = rule.protocols.map((p) => `${p}//`).join(' or ');
+    throw new InvalidWalletConfigurationError(
+      rule.key,
+      `it uses "${protocol}//" but this endpoint must start with ${allowed}. Expected something like ${rule.example}.`
+    );
+  }
+};
+
+/**
  * Loads the network side of the wallet configuration (indexer, relay,
- * optional proof server). Does not read the wallet seed - see
+ * optional proof server). Endpoint schemes are validated as written - see
+ * `ENDPOINT_RULES` - and never rewritten. Does not read the wallet seed - see
  * `loadWalletSeedHex` - so seed handling stays isolated from general
  * configuration validation.
  */
@@ -54,6 +119,9 @@ export const loadWalletNetworkConfig = (
   const missing = REQUIRED_NETWORK_KEYS.filter((key) => !env[key]);
   if (missing.length > 0) {
     throw new MissingWalletConfigurationError(missing);
+  }
+  for (const rule of ENDPOINT_RULES) {
+    validateEndpoint(rule, env[rule.key]!);
   }
 
   return {

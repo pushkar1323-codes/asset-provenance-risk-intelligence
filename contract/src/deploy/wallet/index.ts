@@ -14,6 +14,7 @@ import type { AssetPassportWalletProviders } from '../../api/providers.js';
 export {
   loadWalletNetworkConfig,
   loadWalletSeedHex,
+  InvalidWalletConfigurationError,
   MissingWalletConfigurationError,
   MissingWalletSeedError,
   type WalletNetworkConfig

@@ -1,5 +1,13 @@
+import { existsSync } from 'node:fs';
+import path from 'node:path';
 import { describe, expect, it } from 'vitest';
-import { loadDeploymentConfig, MissingConfigurationError, UnsupportedNetworkError } from '../../src/deploy/config.js';
+import {
+  loadDeploymentConfig,
+  MissingConfigurationError,
+  repoRoot,
+  resolveFromRepoRoot,
+  UnsupportedNetworkError
+} from '../../src/deploy/config.js';
 
 const validEnv = (): NodeJS.ProcessEnv => ({
   MIDNIGHT_NETWORK: 'preprod',
@@ -15,7 +23,7 @@ describe('loadDeploymentConfig', () => {
   it('loads a valid configuration', () => {
     const config = loadDeploymentConfig(validEnv());
     expect(config.networkId).toBe('preprod');
-    expect(config.zkConfigPath).toBe('./contract/managed/asset-passport');
+    expect(config.zkConfigPath).toBe(path.join(repoRoot, 'contract', 'managed', 'asset-passport'));
     expect(config.privateStateId).toBe('asset-passport');
   });
 
@@ -55,5 +63,54 @@ describe('loadDeploymentConfig', () => {
     const config = loadDeploymentConfig(validEnv());
     expect(typeof config.privateStoragePasswordProvider).toBe('function');
     expect(config.privateStoragePasswordProvider()).toBe('a-sufficiently-long-local-password');
+  });
+});
+
+describe('ZK_CONFIG_PATH resolution', () => {
+  it('derives the repository root from the module location', () => {
+    // The root is the directory that contains the contract workspace.
+    expect(existsSync(path.join(repoRoot, 'contract', 'package.json'))).toBe(true);
+    expect(path.isAbsolute(repoRoot)).toBe(true);
+  });
+
+  it('resolves a relative path against the repository root', () => {
+    const config = loadDeploymentConfig(validEnv());
+    expect(path.isAbsolute(config.zkConfigPath)).toBe(true);
+    expect(config.zkConfigPath).toBe(path.resolve(repoRoot, 'contract', 'managed', 'asset-passport'));
+  });
+
+  it('does not depend on the current working directory', () => {
+    const original = process.cwd();
+    const before = loadDeploymentConfig(validEnv()).zkConfigPath;
+    try {
+      process.chdir(path.join(repoRoot, 'contract'));
+      expect(loadDeploymentConfig(validEnv()).zkConfigPath).toBe(before);
+    } finally {
+      process.chdir(original);
+    }
+  });
+
+  it('leaves an absolute path unchanged', () => {
+    const absolute = path.resolve(path.parse(repoRoot).root, 'somewhere', 'else', 'managed');
+    const config = loadDeploymentConfig({ ...validEnv(), ZK_CONFIG_PATH: absolute });
+    expect(config.zkConfigPath).toBe(absolute);
+  });
+
+  it('points the key and ZKIR lookups at the generated managed directory', () => {
+    const { zkConfigPath } = loadDeploymentConfig(validEnv());
+    expect(path.relative(repoRoot, zkConfigPath).split(path.sep)).toEqual(['contract', 'managed', 'asset-passport']);
+    expect(path.resolve(zkConfigPath, 'keys', 'registerAsset.verifier')).toBe(
+      path.join(repoRoot, 'contract', 'managed', 'asset-passport', 'keys', 'registerAsset.verifier')
+    );
+  });
+
+  it('resolves against an explicit root and handles parent-relative values', () => {
+    const root = path.resolve(path.parse(repoRoot).root, 'project');
+    expect(resolveFromRepoRoot('./contract/managed/asset-passport', root)).toBe(
+      path.join(root, 'contract', 'managed', 'asset-passport')
+    );
+    expect(resolveFromRepoRoot('contract/../contract/managed/asset-passport', root)).toBe(
+      path.join(root, 'contract', 'managed', 'asset-passport')
+    );
   });
 });

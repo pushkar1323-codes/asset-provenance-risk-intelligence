@@ -4,6 +4,27 @@
  * project's `.env.example` already documents.
  */
 
+import path from 'node:path';
+import { fileURLToPath } from 'node:url';
+
+/**
+ * Absolute path of the repository root. This file lives at
+ * contract/src/deploy/config.ts, four path segments below the root, which
+ * is where the canonical local .env lives. It is derived from this
+ * module's own location, so it does not depend on the directory (or npm
+ * workspace) the process was started from.
+ */
+export const repoRoot = path.resolve(fileURLToPath(import.meta.url), '..', '..', '..', '..');
+
+/**
+ * Resolves a configured file-system path. Relative paths are interpreted
+ * relative to the repository root (the same base the documented .env
+ * values use), never the process's current working directory. Absolute
+ * paths are returned unchanged.
+ */
+export const resolveFromRepoRoot = (configuredPath: string, root: string = repoRoot): string =>
+  path.isAbsolute(configuredPath) ? configuredPath : path.resolve(root, configuredPath);
+
 export type DeploymentConfig = {
   readonly networkId: 'preprod';
   readonly zkConfigPath: string;
@@ -47,12 +68,14 @@ const REQUIRED_KEYS = [
 
 /**
  * Loads deployment configuration from the given environment (defaults to
- * `process.env`). Throws `UnsupportedNetworkError` if `MIDNIGHT_NETWORK` is
+ * `process.env`). A relative `ZK_CONFIG_PATH` is resolved against
+ * `root` (the repository root by default). Throws `UnsupportedNetworkError` if `MIDNIGHT_NETWORK` is
  * not exactly `"preprod"`, and `MissingConfigurationError` listing every
  * missing required variable otherwise. Never logs any value it reads.
  */
 export const loadDeploymentConfig = (
-  env: NodeJS.ProcessEnv = process.env
+  env: NodeJS.ProcessEnv = process.env,
+  root: string = repoRoot
 ): DeploymentConfig => {
   if (env.MIDNIGHT_NETWORK !== 'preprod') {
     throw new UnsupportedNetworkError(env.MIDNIGHT_NETWORK);
@@ -65,7 +88,7 @@ export const loadDeploymentConfig = (
 
   return {
     networkId: 'preprod',
-    zkConfigPath: env.ZK_CONFIG_PATH!,
+    zkConfigPath: resolveFromRepoRoot(env.ZK_CONFIG_PATH!, root),
     indexerUrl: env.MIDNIGHT_INDEXER_URL!,
     indexerWsUrl: env.MIDNIGHT_INDEXER_WS_URL!,
     proofServerUrl: env.MIDNIGHT_PROOF_SERVER_URL!,

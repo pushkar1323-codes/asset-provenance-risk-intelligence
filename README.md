@@ -416,8 +416,10 @@ use.
 
 To use it, additionally set in `.env`:
 
-- `MIDNIGHT_RELAY_URL` — the node/relay endpoint the wallet submits
-  transactions through.
+- `MIDNIGHT_RELAY_URL` — the node's WebSocket endpoint the wallet submits
+  transactions through. It must start with `ws://` or `wss://` (for Preprod,
+  `wss://rpc.preprod.midnight.network`); the node's `https://` RPC address
+  is a different endpoint and is rejected at startup with a clear message.
 - `DEPLOYMENT_WALLET_SEED_HEX` — a local, 32-byte hex-encoded seed for
   this deployment identity. Generate one yourself (see `.env.example`
   for the exact command); never share it, commit it, or send it to

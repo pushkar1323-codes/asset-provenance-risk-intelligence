@@ -10,10 +10,10 @@
  */
 
 import path from 'node:path';
-import { fileURLToPath } from 'node:url';
 import { WebSocket } from 'ws';
 import {
   loadDeploymentConfig,
+  repoRoot,
   MissingConfigurationError,
   UnsupportedNetworkError
 } from './config.js';
@@ -25,20 +25,18 @@ import {
 } from './wallet/index.js';
 
 // The indexer provider subscribes to the indexer over a GraphQL
-// WebSocket; Midnight's provider-configuration guidance for Node.js
-// environments is to supply a WebSocket implementation on the global
-// object, since Node does not provide one in every supported version.
-if (typeof globalThis.WebSocket === 'undefined') {
-  (globalThis as { WebSocket?: unknown }).WebSocket = WebSocket;
-}
+// WebSocket. Official Midnight Node.js examples assign this
+// unconditionally, and the wallet SDK's indexer client does not accept an
+// explicit WebSocket implementation of its own - it relies entirely on
+// this global - so it must always be the `ws` implementation, not
+// whatever WebSocket (if any) the Node runtime itself already defines.
+(globalThis as { WebSocket?: unknown }).WebSocket = WebSocket;
 
-// This file lives at contract/src/deploy/cli.ts, four directories below
-// the repository root, which is where the canonical local .env lives.
-// Resolving that path from this module's own location (rather than
+// The canonical local .env lives at the repository root. Resolving it
+// from the root derived from this module's own location (rather than
 // process.loadEnvFile()'s default of the current working directory)
 // means the CLI finds the right .env regardless of which directory or
 // npm workspace it is actually invoked from.
-const repoRoot = path.resolve(fileURLToPath(import.meta.url), '..', '..', '..', '..');
 const rootEnvPath = path.join(repoRoot, '.env');
 
 try {

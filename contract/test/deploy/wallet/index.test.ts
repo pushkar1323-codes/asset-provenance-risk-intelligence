@@ -14,7 +14,7 @@ const { MissingWalletSeedError, MissingWalletConfigurationError } = await import
 const validEnv = (): NodeJS.ProcessEnv => ({
   MIDNIGHT_INDEXER_URL: 'https://indexer.preprod.midnight.network/api/v4/graphql',
   MIDNIGHT_INDEXER_WS_URL: 'wss://indexer.preprod.midnight.network/api/v4/graphql/ws',
-  MIDNIGHT_RELAY_URL: 'https://relay.preprod.midnight.network',
+  MIDNIGHT_RELAY_URL: 'wss://rpc.preprod.midnight.network',
   DEPLOYMENT_WALLET_SEED_HEX: 'a'.repeat(64)
 });
 
