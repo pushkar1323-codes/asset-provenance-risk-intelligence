@@ -1,531 +1,354 @@
+<div align="center">
+
 # Asset Provenance & Risk Intelligence Protocol
 
-[![CI](https://github.com/<OWNER>/asset-provenance-risk-intelligence/actions/workflows/ci.yml/badge.svg)](https://github.com/<OWNER>/asset-provenance-risk-intelligence/actions/workflows/ci.yml)
+> A privacy-preserving asset passport on Midnight: prove ownership, provenance and credentials without revealing the sensitive records behind them.
 
-A privacy-preserving asset passport, built on Midnight, that lets owners and
-authorized parties verify vehicle ownership, provenance, and service or
-compliance credentials — without exposing the sensitive information behind
-those facts.
+[![Midnight](https://img.shields.io/badge/Network-Midnight%20Preprod-0B2545)](#deployed-contract)
+[![Compact](https://img.shields.io/badge/Contract-Compact-5B21B6)](https://docs.midnight.network/compact)
+[![React](https://img.shields.io/badge/React-Frontend-61DAFB?logo=react&logoColor=black)](https://react.dev/)
+[![TypeScript](https://img.shields.io/badge/TypeScript-Frontend%20%26%20Tooling-3178C6?logo=typescript&logoColor=white)](https://www.typescriptlang.org/)
+[![Node](https://img.shields.io/badge/Node.js-22+-339933?logo=nodedotjs&logoColor=white)](https://nodejs.org/)
+[![Tests](https://img.shields.io/badge/Tests-103%20contract%20%C2%B7%20109%20frontend%20passing-success)](#testing)
 
-This repository contains the protocol's contract, its Midnight.js
-integration layer, and a web application that connects a wallet and
-exercises one real contract operation end to end (see
-[Status](#status) for exactly what has and has not been verified). The
-off-chain risk-intelligence service is not implemented yet.
+**[Deployed Contract](#deployed-contract)** · **[Privacy Model](#privacy-model)** · **[Proposal](./PROPOSAL.md)**
 
-## Live Demo
+</div>
 
-No live deployment exists yet, so there is no demo link to publish. This
-section will be filled in with a real URL only once a deployed instance
-has actually been verified to work end to end — see
-[Verification status](#verification-status) for what "verified" means in
-this repository.
+---
 
-## Contract Address
+## Overview
 
-| Network | Address |
-|---------|---------|
-| Preprod | *Not yet deployed.* No contract has been deployed to Preprod, so no address exists. This row will be filled in only after a real deployment has been performed and independently confirmed — see [Deploying to Preprod](#deploying-to-preprod). |
+Asset Provenance & Risk Intelligence Protocol is a Midnight dApp for assets whose value depends on a trustworthy history, starting with vehicles. Today, a buyer, insurer or inspector has to trust paperwork they cannot independently check, while owners must hand over private records to prove anything. This protocol gives each asset a public, verifiable passport on Midnight. Ownership, credentials (such as inspections or compliance records) and provenance events are recorded as cryptographic commitments, and zero-knowledge proofs let the right party demonstrate that they are valid, authorized and consistent. The documents and keys behind those commitments never leave the holder's machine, and an off-chain risk-intelligence process can reference a committed assessment without ever gaining authority over contract state.
 
-## What this protocol does
+The first supported asset type is a **Vehicle Asset Passport**.
 
-The initial vertical is a **Vehicle Asset Passport**. It lets a vehicle's
-owner:
+**Core capabilities:**
 
-- Register a vehicle as an asset under a private ownership commitment.
-- Attach confidential credentials (e.g. inspection, service, or compliance
-  records) as commitments, and later prove — without revealing the
-  underlying document — that a specific credential is valid.
-- Record provenance events (e.g. an accident, a repair, a change of use) as
-  commitments tied to the asset's history.
-- Transfer ownership to a new party using a proof of current ownership,
-  without revealing either party's private key material.
-- Have an authorized risk-intelligence process publish a committed
-  reference to an off-chain risk assessment, without that process ever
-  running on-chain or gaining authority over asset state.
+- Register a vehicle as an asset under a private ownership commitment
+- Attach confidential credentials (for example inspection, service or compliance records) as commitments, and later prove, without revealing the document, that a specific credential is valid
+- Record provenance events (for example an accident, a repair or a change of use) as commitments tied to the asset's history
+- Transfer ownership to a new party by proving current ownership, without revealing either party's private key material
+- Retire an asset permanently
+- Let an authorized risk oracle publish a committed reference to an off-chain risk assessment, together with a coarse risk tier
 
-Everyone can verify that these facts are consistent and correctly
-authorized. Nobody but the relevant private-key holder needs to see the
-underlying vehicle history, inspection reports, or personal ownership data.
+Anyone can verify that these facts are consistent and correctly authorized. Only the relevant private-key holder needs to see the underlying vehicle history, reports or ownership data.
 
-## Privacy model
+**Midnight proves. The off-chain layer only analyzes.** The Compact contract is the only source of truth for asset registration and status, ownership commitments, credential state, provenance commitments and the reference to the current risk assessment. Nothing outside the contract can override it.
 
-**Midnight proves. The off-chain layer only analyzes.**
+---
 
-The Compact contract in this repository is the sole source of truth for:
+## Deployed Contract
 
-- asset registration and status
-- ownership commitments
-- credential existence and verification state
-- provenance event commitments
-- the reference to the current risk assessment
+| | |
+| --- | --- |
+| **Network** | Midnight Preprod |
+| **Contract address** | `ceec2dd543e6f33e18c1c17e57f7893c31fafe784262ffa7d0bc100ef198f229` |
+| **Deployment transaction ID** | `005b45d95c33109ad668b6d16e08ddc9478dd64dc83bd63a62f58d7abf3a95fe3e` |
 
-Nothing outside the contract can override this state. A future
-risk-intelligence layer (not implemented in this repository yet) is scoped
-to read already-verified, already-disclosed contract data and produce risk
-signals — it cannot determine ownership, fabricate credentials, or modify
-contract state.
+This is the deployed Asset Passport contract (`contract/src/asset-passport.compact`). It was deployed with the repository's own deployment runner (`npm run contract:deploy:preprod`, described under [Deploying the Contract](#deploying-the-contract)), whose constructor takes the public `admin` and `oracle` role commitments. The address and transaction ID above are the values the deployment command printed. The contract is also independently visible on the Midnight Preprod Explorer, which lists it as deployed at this address.
 
-### What stays private
+---
 
-Private data is supplied to the contract only through **witnesses** —
-functions that run on the caller's own machine and never transmit their
-return value anywhere. The following never appears on-chain:
+## Screenshots
 
-- the owner's private key material
-- the contents of a credential (inspection report, insurance document, etc.)
-- the private details behind a provenance event
-- the administrator's and risk oracle's private authorization keys
-- the full detail behind a risk assessment (only a commitment and a coarse,
-  deliberately disclosed risk tier are published)
+### Contract Compilation
 
-### What becomes public
+> **Screenshot:** Successful `compact compile` output showing the compiled Asset Passport circuits.
+>
+> `[INSERT COMPILE SCREENSHOT HERE]`
 
-Only values the contract explicitly wraps in `disclose()` are written to
-the public ledger:
+### Preprod Contract Deployment
 
-- a hash commitment binding an asset to its current owner (not the owner's
-  key)
-- asset category, registration time, and lifecycle status
-- a hash commitment for each credential and provenance event (not their
-  contents)
-- credential/provenance lifecycle status (pending, verified, revoked)
-- a coarse risk tier and a hash commitment referencing the full off-chain
-  risk assessment
+> **Screenshot:** Midnight Preprod Explorer showing the deployed Asset Passport contract and contract address.
+>
+> `[INSERT DEPLOYMENT SCREENSHOT HERE]`
 
-Selective disclosure is deliberate throughout: the contract only exposes
-what a specific circuit genuinely needs to become verifiable on-chain.
+The Midnight Preprod Explorer shows:
 
-## Privacy Claim
+- the contract as **DEPLOYED**, at address `ceec2dd543e6f33e18c1c17e57f7893c31fafe784262ffa7d0bc100ef198f229`
+- the successful deployment transaction `005b45d95c33109ad668b6d16e08ddc9478dd64dc83bd63a62f58d7abf3a95fe3e`
+- a `DEPLOY` contract action pointing to the same contract address
 
-What someone with no private state — anyone reading the public ledger or
-watching submitted transactions, with no witness data of their own — can
-and cannot learn about this protocol:
+**Live demo:** not available; a link will be added once a hosted instance exists.
 
-**Can see:**
+---
 
-- That a given asset id exists, its category, registration time, and
-  whether it is active or retired
-- That an asset's ownership commitment changed (a transfer or retirement
-  occurred) — never who the owner is, or any owner's private key
-- That a credential exists for a given asset, its declared type, its
-  lifecycle status (pending/verified/revoked), and which issuer
-  commitment vouches for it — never the credential document itself
-- That a provenance event was recorded for a given asset, its declared
-  event type, and when — never the private detail behind that event
-- That a risk assessment exists for a given asset, its coarse risk tier,
-  and when it was recorded — never the detail behind that assessment
+## Architecture
 
-**Cannot see, deduce, or reconstruct:**
+<div align="center">
 
-- Any owner's, administrator's, or risk oracle's private key
-- The contents of any credential document (inspection report, insurance
-  document, etc.)
-- The private detail behind any provenance event
-- The full off-chain risk assessment referenced by a risk commitment
-- Which real-world identity controls a given owner, admin, or oracle
-  commitment
-
-This boundary is not a policy promise layered on top of the contract —
-it is exactly the set of values passed through `disclose()` in
-`asset-passport.compact` (see [Privacy model](#privacy-model) above for
-the itemized list). Anything not explicitly disclosed there never leaves
-the caller's own machine.
-
-## Technology stack
-
-- **Contract language:** [Compact](https://docs.midnight.network/compact)
-  (Midnight's zero-knowledge smart contract language)
-- **Contract runtime:** `@midnight-ntwrk/compact-runtime`
-- **Contract deployment/interaction:** `@midnight-ntwrk/midnight-js-contracts`
-  and the supporting Midnight.js provider packages
-- **Wallet integration:** the Midnight DApp Connector API
-  (`@midnight-ntwrk/dapp-connector-api`) - the standard `window.midnight`
-  injection mechanism any compliant wallet (including Lace) implements
-- **Frontend:** React + Vite (TypeScript)
-- **Tests:** [Vitest](https://vitest.dev/), for both the contract (run
-  against its generated TypeScript artifacts through a small simulator)
-  and the frontend (wallet/contract-wiring logic and components)
-- **Language:** TypeScript (Node.js ≥ 22)
-
-## Project structure
-
+```text
+React (TypeScript + Vite)
+        │
+Midnight DApp Connector (browser wallet)
+        │
+Midnight.js providers ───────── Proof generation
+        │                       (wallet prover or proof server)
+Asset Passport contract (Compact)
+        │
+Midnight Preprod (node + indexer)
 ```
+
+</div>
+
+The deployment runner (`contract/src/deploy/`) reaches the same contract through a Node wallet built on the Midnight Wallet SDK, and the browser fetches the contract's ZK artifacts from a static location you configure (see [Setup](#setup)).
+
+---
+
+## Registration Flow
+
+1. **Enter details** — the user enters an asset identifier and category; both are validated
+2. **Derive the asset id** — the web application computes a SHA-256 hash of the identifier as the public asset id and shows a preview
+3. **Create the ownership key** — an ownership key is generated locally and kept in the local private-state store; it is never displayed or transmitted
+4. **Prove** — the `registerAsset` circuit is proven with the ownership key as private witness
+5. **Submit** — the connected wallet balances the transaction and submits it; only the ownership commitment becomes public
+6. **Record** — the asset is marked registered in the browser-local list only after the contract call returns a transaction id
+
+---
+
+## Privacy Model
+
+Midnight contracts separate **public ledger state** (visible to everyone) from **private witness data** (supplied by the caller's own machine, used inside the zero-knowledge proof, and never published).
+
+### What is public (on-chain)
+
+Only values the contract explicitly passes through `disclose()` are written to the public ledger:
+
+- The asset id (a public lookup key; the web application derives it as a SHA-256 hash of the identifier you enter), the asset category, the registration time supplied with the registration call, and lifecycle status (active or retired)
+- A hash commitment binding each asset to its current owner. It is not the owner's key
+- For each credential: the asset it belongs to, a declared credential type, the issuer commitment, a commitment to the credential contents, its status (pending, verified or revoked) and when it was added
+- For each provenance event: the asset it belongs to, a declared event type, a commitment to the event detail, and when it was recorded
+- For each risk assessment: the asset, a commitment to the full off-chain assessment, a coarse risk tier and when it was assessed
+- Two role commitments, `admin` and `oracle`, set when the contract is deployed
+
+### What stays private (the private witness)
+
+The contract declares five witnesses. Each is a function that runs on the caller's own machine, and its return value is used only inside the proof:
+
+| Witness | Represents |
+| --- | --- |
+| `ownerSecretKey(assetId)` | The owner's secret for one asset. Proves ownership without revealing it. |
+| `credentialSecret(credentialId)` | The private contents behind a credential commitment. |
+| `provenanceSecret(eventId)` | The private detail behind a provenance event commitment. |
+| `adminSecretKey()` | The administrator's secret authorizing credential revocation. |
+| `oracleSecretKey()` | The risk oracle's secret authorizing risk assessments. |
+
+Commitments use domain-separated hashing (`persistentHash` over a padded domain tag plus the relevant identifiers and secret), so a commitment computed for one purpose cannot be confused with one computed for another.
+
+### What an observer can and cannot learn
+
+An observer reading the public ledger and watching submitted transactions, with no witness data of their own, **can** see that an asset exists and its category, registration time and status; that its ownership commitment changed; that a credential or provenance event of a given type exists for it; and that a risk assessment with a given coarse tier was recorded.
+
+They **cannot** learn any owner's, administrator's or oracle's secret key, the contents of any credential, the private detail behind any provenance event, the full risk assessment, or which real-world identity controls a given commitment.
+
+One caveat follows from the design: the asset id is public. If an identifier is low-entropy or known to others (a vehicle identification number, for example), anyone who knows it can compute the asset id and look up that asset's public record. The record reveals the facts listed above, not the owner or the documents.
+
+---
+
+## Technology Stack
+
+| Layer | Technologies |
+|---|---|
+| Contract | Compact, `@midnight-ntwrk/compact-runtime` |
+| Integration | `@midnight-ntwrk/midnight-js-contracts` and the supporting Midnight.js provider packages |
+| Node wallet | Midnight Wallet SDK (`@midnight-ntwrk/wallet-sdk-*`), `@midnight-ntwrk/ledger-v8` |
+| Browser wallet | Midnight DApp Connector API (`@midnight-ntwrk/dapp-connector-api`) |
+| Frontend | React 18, Vite, TypeScript |
+| Tests | Vitest (both workspaces) |
+| Runtime | Node.js 22 or later |
+
+---
+
+## Project Structure
+
+```text
 asset-provenance-risk-intelligence/
 ├── contract/
 │   ├── src/
 │   │   ├── asset-passport.compact   # the Compact contract
-│   │   ├── witnesses.ts             # private-state model + witness implementations
-│   │   └── api/                     # Midnight.js integration: deploy, connect, providers
-│   ├── test/
-│   │   ├── simulator.ts             # test harness wrapping the compiled contract
-│   │   ├── asset-passport.test.ts   # circuit / state-transition / privacy tests
-│   │   └── api/                     # integration-layer tests (mocked, no live network)
-│   ├── managed/                     # compiled contract output (generated locally, gitignored)
-│   ├── package.json
-│   ├── tsconfig.json
-│   └── vitest.config.ts
+│   │   ├── witnesses.ts             # private-state model and witness implementations
+│   │   ├── api/                     # Midnight.js integration: deploy, connect, providers
+│   │   └── deploy/                  # Preprod deployment runner and Node wallet
+│   │       └── wallet/              # key derivation, wallet facade, persistence, provider adapter
+│   ├── test/                        # contract, integration-layer, deployment and wallet tests
+│   ├── managed/                     # generated compiler output (circuits, keys, zkir), included in the repository
+│   └── package.json
 ├── frontend/
 │   ├── src/
-│   │   ├── lib/wallet/               # wallet detection, connection, provider adapter
-│   │   ├── lib/contract/             # browser providers, validation, registerAsset flow
-│   │   ├── components/               # WalletPanel, RegisterAssetForm, PrivacyNotice
+│   │   ├── lib/                     # wallet, contract wiring, local asset record, navigation
+│   │   ├── components/              # wallet panel, register form, shared UI
+│   │   ├── views/                   # overview, assets, passport, provenance, risk, privacy, settings
 │   │   └── App.tsx
-│   ├── package.json
-│   ├── tsconfig.json
-│   └── vite.config.ts
-├── package.json                     # workspace root
-├── .env.example
-└── README.md
+│   └── package.json
+├── .github/workflows/ci.yml         # GitHub Actions workflow running the commands below
+├── PROPOSAL.md                      # product description and data model
+├── .env.example                     # configuration template (no secrets)
+└── package.json                     # npm workspace root
 ```
 
-## Contract architecture
+---
 
-The contract (`contract/src/asset-passport.compact`) exposes the following
-entry points:
+## Contract Interface
+
+The contract (`contract/src/asset-passport.compact`) exposes eight circuits:
 
 | Circuit | Purpose |
-| --- | --- |
+|---|---|
 | `registerAsset` | Registers a new asset under an owner commitment |
 | `transferOwnership` | Moves ownership to a new commitment, proving current ownership |
-| `retireAsset` | Marks an asset as retired (owner-only) |
-| `addCredential` | Attaches a confidential credential commitment to an asset (owner-only) |
+| `retireAsset` | Marks an asset as retired (owner only) |
+| `addCredential` | Attaches a confidential credential commitment to an asset (owner only) |
 | `verifyCredential` | Proves knowledge of a credential's private contents against its stored commitment |
-| `revokeCredential` | Revokes a credential (administrator-only) |
-| `addProvenanceEvent` | Records a provenance event commitment against an asset (owner-only) |
-| `recordRiskAssessment` | Publishes a committed reference to an off-chain risk assessment (oracle-only) |
+| `revokeCredential` | Revokes a credential (administrator only) |
+| `addProvenanceEvent` | Records a provenance event commitment against an asset (owner only) |
+| `recordRiskAssessment` | Publishes a committed reference to an off-chain risk assessment (oracle only) |
 
-Public ledger state is organized as:
+Public ledger state: `admin`, `oracle`, `assetCount`, `assets`, `credentials`, `credentialCountByAsset`, `provenance`, `provenanceCountByAsset` and `riskAssessments`.
 
-- `admin`, `oracle` — public-key-style commitments authorizing the two
-  protocol roles used by the contract
-- `assetCount` — a running count of registered assets
-- `assets` — asset id → `AssetRecord` (category, registration time, owner
-  commitment, status)
-- `credentials`, `credentialCountByAsset` — credential id → `CredentialRecord`,
-  and a per-asset credential count
-- `provenance`, `provenanceCountByAsset` — event id → `ProvenanceRecord`,
-  and a per-asset event count
-- `riskAssessments` — asset id → `RiskRecord` (commitment, disclosed tier,
-  timestamp)
+### Integration layer
 
-All commitments use domain-separated hashing (`persistentHash` over a
-padded domain tag plus the relevant identifiers and private material), so
-commitments computed for one purpose (e.g. an owner key) cannot be
-confused with commitments computed for another (e.g. a credential).
+`contract/src/api/` provides typed helpers to deploy the contract, connect to a deployed instance and build the Midnight.js provider bundle.
 
-## Web application
+### Deployment runner and local wallet
 
-`frontend/` is a small React application that connects a wallet and
-registers an asset through the contract above.
+`contract/src/deploy/` is a command-line runner that validates configuration, generates local administrator and oracle secrets, derives their public commitments with the contract's own hashing scheme, and deploys through a Node wallet built on the Midnight Wallet SDK (shielded, unshielded and DUST keys derived from one local seed, with saved synchronization progress).
 
-**Wallet connection.** The app detects any wallet injected under
-`window.midnight` (the standard Midnight DApp Connector mechanism - Lace
-and any other compliant wallet work the same way), lets the person choose
-one, and requests a connection. It tracks connection state (disconnected,
-connecting, connected, error), displays the connected wallet's name and
-unshielded address, and compares the wallet's reported network against
-the network this application is configured for, showing a clear warning
-if they differ. Disconnecting clears the application's local reference to
-the connection (the DApp Connector API has no wallet-side "disconnect"
-call - the wallet itself manages the granted permission).
+### Web application
 
-**Registering an asset.** The form collects only what the `registerAsset`
-circuit needs: an asset identifier (hashed client-side into the 32-byte
-value the contract uses) and a category. The ownership key is generated
-locally in the browser and never displayed or transmitted - only its
-commitment, computed by the contract itself, becomes part of the
-transaction. Submitting the form connects to the already-deployed
-contract via the existing typed contract API and calls
-`registerAsset(...)` - no circuit signature is redeclared in the
-frontend.
+`frontend/` (React + Vite) provides:
 
-**What this does and does not cover.** Building the transaction and
-generating its proof uses the same typed contract-interaction layer as
-the rest of this repository. Balancing and submitting that transaction
-through the connected wallet requires converting between this project's
-transaction types and the wallet's own wire format; the Midnight DApp
-Connector API does not specify that wire format, so this step
-(`WalletProviderAdapter.balanceTx`/`.submitTx` in
-`frontend/src/lib/wallet/walletProviderAdapter.ts`) is implemented up to
-that exact boundary and stops there rather than guessing at an unverified
-encoding. See [Status](#status) for what this means in practice.
+- Wallet detection for wallets injected under `window.midnight` (the standard Midnight DApp Connector), connection, wallet name, address and connection state, and a network-mismatch warning
+- Asset registration through the contract's `registerAsset` circuit. The ownership key is generated locally and never displayed or transmitted; only its commitment becomes part of the transaction
+- A browser-local list of assets: drafts can be saved without a wallet, and an asset is marked registered only after the contract call returns a transaction id
+- A passport, provenance timeline and risk summary for each asset, drawn from that local record, which state plainly what the application cannot read from the ledger
+- Transfer and retire flows with input validation and confirmation. Their final submit actions stay disabled, because those contract calls are not connected in the application
+- An explanation of the privacy model and of the application's configuration state
 
-## Prerequisites
+---
 
-- Node.js ≥ 22 and npm
-- The [Compact toolchain](https://docs.midnight.network/compact/compilation-and-tooling/compact-compiler)
-  (`compact` CLI), installed and available on your `PATH`, to compile the
-  contract
-- A Midnight-compatible wallet (e.g. Lace) installed in your browser, to
-  use the web application
-- Verify your installed toolchain version against the current release
-  notes at https://docs.midnight.network/relnotes/overview before
-  compiling — the contract targets Compact language version `>= 0.22`,
-  and was written against toolchain `0.31.0` / compact-runtime `0.16.0`
-  documentation current as of this implementation. Confirm these are
-  still the current recommended versions before installing.
+## Getting Started
 
-## Setup & Run Locally
+### Prerequisites
 
-From the repository root:
+- Node.js 22 or later, and npm
+- A Midnight-compatible wallet extension (for example Lace) in your browser, to use the web application
+- The [Compact toolchain](https://docs.midnight.network/compact/compilation-and-tooling/compact-compiler) (the `compact` CLI), only if you want to recompile the contract. The generated artifacts are already included in the repository. The contract declares `pragma language_version >= 0.22`, and the included output records compiler version 0.31.1, language version 0.23.0 and runtime 0.16.0. Check the current recommended versions in the [Midnight release notes](https://docs.midnight.network/relnotes/overview) before installing
+- To deploy: a Midnight proof server, and a funded deployment wallet (see [Deploying the Contract](#deploying-the-contract))
+
+### Setup
 
 ```bash
+git clone <repository-url>
+cd asset-provenance-risk-intelligence
 npm install
 ```
 
-Compile the contract (requires the `compact` CLI on your `PATH`):
+**Contract and development setup** needs nothing beyond `npm install`. The generated artifacts in `contract/managed/asset-passport/` are part of the repository, so the tests and the frontend build run without the Compact compiler, a wallet or a network.
 
-```bash
-npm run contract:compile
-```
+**Frontend setup.** The web application reads build-time configuration from a `.env` file in `frontend/` (Vite reads environment files from the frontend directory, not the repository root). Only variables prefixed `VITE_` reach the browser, and none of them is a secret:
 
-This runs `compact compile src/asset-passport.compact managed/asset-passport`
-inside `contract/`, producing the TypeScript contract module the tests,
-the integration layer, and the frontend import from `contract/managed/`.
+| Variable | Value |
+| --- | --- |
+| `VITE_MIDNIGHT_NETWORK_ID` | The network the app expects the wallet to be on, for example `preprod` |
+| `VITE_ASSET_PASSPORT_CONTRACT_ADDRESS` | The deployed contract address (see [Deployed Contract](#deployed-contract)) |
+| `VITE_ZK_CONFIG_BASE_URL` | An absolute `http(s)` URL from which the browser can fetch the contract's ZK artifacts |
 
-Copy `.env.example` to `.env` and fill in real values before running the
-web application (see the file for what each variable is for). Vite only
-reads variables prefixed `VITE_` into the browser bundle.
+`VITE_ZK_CONFIG_BASE_URL` must serve the contents of `contract/managed/asset-passport/` so that, for example, `<base>/keys/registerAsset.verifier` and `<base>/zkir/registerAsset.bzkir` resolve in a browser. This repository does not include a server or copy step for those files; host them with any static file server that allows requests from the application's origin.
 
-Run the web application locally:
+Run the application:
 
 ```bash
 npm run frontend:dev
 ```
 
-## Run Tests
+Without these variables the application still runs: it shows what is missing, disables wallet connection and on-chain registration, and lets you save asset drafts locally.
+
+---
+
+## Testing
+
+| Command | What it does |
+| --- | --- |
+| `npm run contract:test` | Runs the contract test suite |
+| `npm run contract:typecheck` | Type-checks the contract workspace |
+| `npm run frontend:test` | Runs the frontend test suite |
+| `npm run frontend:typecheck` | Type-checks the frontend workspace |
+| `npm run frontend:build` | Builds the web application |
+| `npm run contract:compile` | Recompiles the contract into `contract/managed/asset-passport/` (only needed after changing the contract) |
+
+The contract tests cover circuit behavior, state transitions (including rejection of invalid ones, such as transferring a retired asset), authorization (callers without the correct secret are rejected, and the ledger never contains the raw private values behind a commitment), the Midnight.js integration layer, the deployment runner and the Node wallet. They run without a live network or wallet. The frontend tests cover wallet detection and connection states, network-mismatch detection, configuration validation, form validation, the local asset record, the asset views, and that unavailable actions never report success.
+
+**Latest verified results for this version:** `npm run contract:test` passed 103 tests (14 test files) and `npm run frontend:test` passed 109 tests (15 test files). Both type-checks and `npm run frontend:build` passed. These ran against mocked network boundaries, not a live wallet or network.
+
+The repository includes a GitHub Actions workflow (`.github/workflows/ci.yml`) that runs install, compile, type-check, test and build with these same commands. It does not deploy anything and uses no secrets.
+
+---
+
+## ZK / Managed Artifacts
+
+`contract/managed/asset-passport/` holds the generated output of `npm run contract:compile`, and it is included in the repository. It contains everything the contract needs to run:
+
+- `contract/`: the generated TypeScript contract module that the tests, the integration layer and the frontend import
+- `keys/`: a prover key (`<circuit>.prover`) and a verifier key (`<circuit>.verifier`) for each of the eight circuits
+- `zkir/`: the zero-knowledge intermediate representation (`<circuit>.zkir` and `<circuit>.bzkir`) for each circuit
+- `compiler/`: compiler metadata (`contract-info.json`), including the circuit and witness signatures
+
+The deployment runner reads these artifacts from the path in `ZK_CONFIG_PATH` (a relative path is resolved against the repository root), and the browser fetches them from `VITE_ZK_CONFIG_BASE_URL`. The `.gitignore` rules ignore other generated output under `contract/managed/` but track the `asset-passport` directory. Re-run `npm run contract:compile` whenever the contract changes, so the included artifacts always match `asset-passport.compact`.
+
+---
+
+## Deploying the Contract
+
+`contract/src/deploy/` deploys the Asset Passport contract to Midnight Preprod. It refuses to run against any other network. Set these in a `.env` file at the repository root (start from `.env.example`):
+
+- `MIDNIGHT_NETWORK=preprod`
+- `ZK_CONFIG_PATH`: the path to `contract/managed/asset-passport`
+- `MIDNIGHT_INDEXER_URL`: the indexer's GraphQL HTTP endpoint (`https://…`)
+- `MIDNIGHT_INDEXER_WS_URL`: the indexer's GraphQL WebSocket endpoint (`wss://…`)
+- `MIDNIGHT_RELAY_URL`: the node's WebSocket endpoint (`wss://rpc.preprod.midnight.network` for Preprod). It must start with `ws://` or `wss://`; the node's `https://` RPC address is a different endpoint and is rejected at startup with a clear message
+- `MIDNIGHT_PROOF_SERVER_URL`: a running Midnight proof server whose version matches the ledger version
+- `PRIVATE_STATE_ACCOUNT_ID` and `PRIVATE_STATE_STORAGE_PASSWORD`: identify and encrypt the local private-state store
+- `DEPLOYMENT_WALLET_SEED_HEX`: a locally generated 32-byte hex seed for the deployment wallet (the generation command is in `.env.example`). Keep it local and never share it
+
+The deployment wallet needs NIGHT registered for DUST generation, and enough generated DUST, to pay transaction fees. Then, from the repository root:
 
 ```bash
-npm run contract:test
-npm run frontend:test
-```
-
-`contract:test` runs the Vitest suite in `contract/test/`, which exercises:
-
-- **Circuit logic** — registration, credential lifecycle, provenance
-  recording, and risk-assessment recording succeed with valid inputs.
-- **State transitions** — ownership transfer, asset retirement, and
-  credential verification/revocation correctly move ledger state between
-  valid states, and reject invalid transitions (e.g. transferring a
-  retired asset).
-- **Privacy / authorization behavior** — circuits reject callers who do
-  not hold the correct private key or credential secret, and tests assert
-  that ledger state never contains the raw private values used to derive
-  a commitment.
-- **Integration-layer wiring** (`contract/test/api/`) — the deployment and
-  connection helpers build the expected `CompiledContract` and forward
-  the right arguments, using mocked network calls.
-- **Deployment runner** (`contract/test/deploy/`) — configuration
-  validation, local secret generation/persistence, and deployment
-  orchestration wiring (mocked at the network boundary), plus an
-  end-to-end check that the runner's commitment derivation is
-  byte-identical to what the compiled contract itself expects, by
-  exercising an admin-gated circuit through the simulator with it.
-
-`frontend:test` runs the Vitest suite in `frontend/src/`, which exercises:
-
-- Wallet detection, connection errors, and network-mismatch detection
-- Environment/configuration validation
-- Register-asset form validation and submission wiring
-- The register-asset contract call's wiring and privacy boundary (only a
-  public transaction id is ever returned - never the private transcript
-  data a real call result also carries)
-- Wallet connection/disconnection state in the UI
-
-None of these require a live wallet, network, or deployed contract - see
-[Status](#status) for what still does.
-
-Type-check either workspace independently of running its tests:
-
-```bash
-npm run typecheck --workspace contract
-npm run typecheck --workspace frontend
-```
-
-Build the web application:
-
-```bash
-npm run frontend:build
-```
-
-## CI/CD
-
-`.github/workflows/ci.yml` runs on every push to `main` and on every pull
-request. It installs dependencies, compiles the contract with the Compact
-compiler, typechecks and tests both workspaces, and builds the frontend —
-the same commands documented above, run the same way. It does not deploy
-anything or require any secrets; a deployment remains a manual,
-deliberate action (see "Deploying to Preprod" below).
-
-## Product Proposal
-
-See [`PROPOSAL.md`](./PROPOSAL.md) for the product description and
-target users, the technical rationale for building this specifically on
-Midnight, the full data model (public ledger fields, private witness
-data, and what is proven without being revealed), and a realistic
-assessment of what remains before this could reach a production/Mainnet
-deployment.
-
-## Deploying to Preprod
-
-`contract/src/deploy/` provides a command-line runner that prepares and
-attempts a deployment of the Asset Passport contract to Midnight Preprod,
-built on the same typed contract API used everywhere else in this
-repository (`contract/src/api/`) — it does not reimplement any contract
-or deployment logic.
-
-Populate `.env` at the repository root with `MIDNIGHT_NETWORK=preprod`
-and: `ZK_CONFIG_PATH`, `MIDNIGHT_INDEXER_URL`, `MIDNIGHT_INDEXER_WS_URL`,
-`MIDNIGHT_PROOF_SERVER_URL`, `PRIVATE_STATE_ACCOUNT_ID`,
-`PRIVATE_STATE_STORAGE_PASSWORD`. Then, from the repository root:
-
-```bash
-# Check configuration only - no network or wallet access attempted.
+# Check configuration only: no network or wallet access
 npm run contract:deploy:preprod:validate
 
-# Attempt a real deployment.
+# Deploy
 npm run contract:deploy:preprod
 ```
 
-The runner will:
+The runner generates (or reuses) local administrator and oracle secrets in `contract/.deployment-secrets/` (gitignored), derives the public commitments the constructor needs, connects and syncs the wallet (saving progress so later runs resume), and deploys. On success it prints the contract address and transaction ID, and the `.env` lines to update (`VITE_ASSET_PASSPORT_CONTRACT_ADDRESS`). Back up `contract/.deployment-secrets/`: it holds the secrets that control the administrator and oracle roles of the contract you deployed.
 
-1. Validate configuration and refuse to run against anything other than
-   `preprod`.
-2. Generate (or reuse) local administrator and risk-oracle secret
-   material, stored only in a gitignored local file
-   (`contract/.deployment-secrets/`), and derive the public commitments
-   the contract's constructor needs from them, using the exact same
-   domain-separated hashing the contract's own `adminPublicKey`/
-   `oraclePublicKey` circuits use.
-3. Attempt to construct a real local wallet (see below).
-4. Build the same provider bundle (`contract/src/api/providers.ts`) used
-   elsewhere in this repository.
-5. Attempt the deployment.
+---
 
-### Local deployment wallet
+## Privacy Claim
 
-`contract/src/deploy/wallet/` implements a real Node wallet using the
-installed Midnight Wallet SDK: it derives shielded, unshielded, and DUST
-key material from one local seed via HD derivation, connects them through
-a `WalletFacade`, and adapts that facade directly to the
-`WalletProvider`/`MidnightProvider` interfaces the provider layer expects
-— without any transaction-serialization step, since the Wallet SDK
-already works with the same typed transaction objects those interfaces
-use.
+Anyone reading the public ledger or watching submitted transactions can verify that an asset is registered, who is authorized to act on it (as commitments), and that its credentials and provenance are consistent, but cannot learn the owner's identity or keys, the contents of any credential, the detail of any provenance event, or the full risk assessment. This boundary is not a policy layered on top of the contract. It is exactly the set of values passed through `disclose()` in `asset-passport.compact`; anything not explicitly disclosed never leaves the caller's own machine.
 
-To use it, additionally set in `.env`:
+---
 
-- `MIDNIGHT_RELAY_URL` — the node's WebSocket endpoint the wallet submits
-  transactions through. It must start with `ws://` or `wss://` (for Preprod,
-  `wss://rpc.preprod.midnight.network`); the node's `https://` RPC address
-  is a different endpoint and is rejected at startup with a clear message.
-- `DEPLOYMENT_WALLET_SEED_HEX` — a local, 32-byte hex-encoded seed for
-  this deployment identity. Generate one yourself (see `.env.example`
-  for the exact command); never share it, commit it, or send it to
-  anyone. This is separate from any browser wallet (Lace) used by the
-  frontend.
+## Current Limitations
 
-If these are not set, the runner proceeds without a wallet and stops
-with a clear error at exactly that point rather than fabricating
-anything, the same as before this integration existed. If they are set,
-the runner performs a real HD key derivation and attempts a real
-connection and sync against the configured indexer and relay — this
-requires genuine network access, funds in the derived wallet to pay
-fees, and is not exercised by this project's automated tests. A proof
-server (`MIDNIGHT_PROOF_SERVER_URL`) is optional: if unset, the wallet
-proves transactions locally instead of requiring one to be running.
+- There is no off-chain risk-intelligence service in this repository. The contract can store a committed risk reference, but nothing here computes risk scores
+- Of the eight circuits, the web application submits only `registerAsset`; the transfer and retire flows stop before submission
+- The application's asset list, passport, provenance and risk views are built from the browser-local record, not read back from the ledger
+- This repository does not include a server for the ZK artifacts the browser fetches (see [Setup](#setup))
+- The contract is deployed to Preprod, a test network
 
-If a real deployment does complete, the runner prints the resulting
-contract address and transaction id (and nothing privacy-sensitive) and
-shows exactly which `.env` lines to update with that address
-(`CONTRACT_ADDRESS`, `VITE_ASSET_PASSPORT_CONTRACT_ADDRESS`).
+---
 
-## Verification status
+## Project Documents
 
-Being transparent about what has and has not actually been run:
+[`PROPOSAL.md`](./PROPOSAL.md) describes the target users, why this is built on Midnight, and the full data model: public ledger fields, private witness data, and what is proven without being revealed.
 
-- **IMPLEMENTED:**
-  - The Compact contract, witnesses module, and contract test suite.
-  - The Midnight.js integration layer (`contract/src/api/`): deployment,
-    connection to an already-deployed contract, and provider
-    configuration, typed against the generated contract.
-  - The web application (`frontend/`): wallet detection/connection,
-    connection state and network-mismatch handling, and a register-asset
-    flow wired to the contract through the existing typed API.
-  - The Preprod deployment runner (`contract/src/deploy/`): configuration
-    validation, local admin/oracle secret generation matching the
-    contract's own commitment derivation, and deployment orchestration.
-  - A real Node wallet integration (`contract/src/deploy/wallet/`) built
-    on the installed Midnight Wallet SDK: HD key derivation, a connected
-    `WalletFacade`, and a `WalletProvider`/`MidnightProvider` adapter
-    with no transaction-serialization gap (unlike the browser adapter,
-    the Wallet SDK works with the same typed transaction objects those
-    interfaces expect).
-- **VERIFIED:**
-  - The contract compiles successfully with the Compact toolchain,
-    producing prover/verifier keys and zkir for all eight circuits under
-    `contract/managed/asset-passport/`.
-  - `npm run typecheck --workspace contract` and
-    `npm run typecheck --workspace frontend` both pass cleanly against
-    the real generated contract types and the real installed Midnight.js,
-    Wallet SDK, and DApp Connector API packages (not just documentation -
-    several real type mismatches between package versions were found and
-    fixed this way).
-  - `npm run contract:test` passes: **63 of 63 tests** (13 contract
-    behavior tests, 11 integration-layer wiring tests, 16 deployment
-    runner tests, and 23 Node wallet tests covering key derivation
-    determinism, configuration validation, provider-adapter wiring, and
-    that no secret ever appears in a thrown error message).
-  - `npm run frontend:test` passes: **24 of 24 tests**, covering wallet
-    connection/disconnection, network-mismatch detection, environment
-    validation, form validation, the register-asset call's wiring, and
-    its privacy boundary.
-  - `npm run frontend:build` succeeds and produces a real production
-    bundle, including the WASM modules the ledger package requires
-    (this needed `vite-plugin-wasm` and an `esnext` build target, both
-    now configured in `frontend/vite.config.ts`).
-  - The deployment runner was actually run against a locally-populated
-    Preprod `.env` with a test (non-real) wallet seed: it genuinely
-    derived HD keys, constructed shielded/unshielded/DUST wallets, and
-    attempted a real sync connection against the configured Preprod
-    indexer - which correctly failed in this environment (no route to
-    Midnight's Preprod infrastructure from here), rather than fabricating
-    a success. Without a seed configured, the runner still stops cleanly
-    with the same honest error as before this integration existed.
-- **REQUIRES LOCAL TESTING:**
-  - Connecting a real wallet and confirming the connection, address,
-    and network-mismatch UI behave as expected against that wallet.
-  - `WalletProviderAdapter.balanceTx`/`.submitTx`
-    (`frontend/src/lib/wallet/walletProviderAdapter.ts`): converting
-    between this project's transaction types and the connected wallet's
-    string-based wire format. The Midnight DApp Connector API does not
-    specify that encoding, so this could not be verified without a live
-    wallet; both methods currently throw a clearly labeled error at
-    exactly that point rather than guessing. This is specific to the
-    browser wallet adapter - the Node wallet integration above does not
-    have this gap.
-  - The Node wallet's actual connection, sync, balancing, and submission
-    against live Preprod infrastructure, with real funds - this
-    environment has no network route there to verify it.
-  - An actual deployment and a full registerAsset submission against a
-    live network — neither has happened; no contract address exists yet.
-- **REQUIRES MANUAL ACTION:** installing a Midnight-compatible wallet,
-  populating `.env`/`frontend/.env` with real values (indexer, relay,
-  proof server, contract address, zk config URL, and a locally-generated
-  `DEPLOYMENT_WALLET_SEED_HEX` funded with Preprod tokens), and running
-  an actual deployment — see "Deploying to Preprod" above.
+---
 
-No contract has been deployed, no transaction has been submitted, and no
-wallet has been connected. Any of those claims should be treated as false
-until you have performed and confirmed them yourself.
+<div align="center">
 
-## Roadmap (not yet implemented)
+<p>Built with Compact, Midnight.js, React, and TypeScript</p>
 
-- Resolving the browser wallet adapter's transaction encoding against a
-  live wallet (see `frontend/src/lib/wallet/walletProviderAdapter.ts`)
-- Off-chain risk-intelligence service (anomaly detection, risk scoring,
-  explainability) operating on verified/disclosed contract data only
-- Additional contract operations surfaced in the UI (credentials,
-  provenance, ownership transfer)
-- Continuous integration workflow
+</div>

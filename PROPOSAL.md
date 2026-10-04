@@ -141,19 +141,18 @@ No fields beyond what is declared in `asset-passport.compact` and
   `retireAsset`, `addCredential`, `verifyCredential`, `revokeCredential`,
   `addProvenanceEvent`, `recordRiskAssessment`) compiles successfully,
   producing prover/verifier keys and zkir for every circuit.
-- `npm run contract:test` passes 63/63 (contract behavior, integration-layer
-  wiring, deployment-runner, and Node wallet tests); `npm run frontend:test`
-  passes 24/24; both workspaces typecheck cleanly against the real
+- `npm run contract:test` passes 103 tests across 14 test files (contract
+  behavior, integration-layer wiring, deployment-runner, and Node wallet
+  tests); `npm run frontend:test` passes 109 tests across 15 test files;
+  both workspaces typecheck cleanly against the real
   installed Midnight.js, Wallet SDK, and DApp Connector API packages;
   `npm run frontend:build` produces a real production bundle.
 - The full Midnight.js integration layer, a Preprod deployment runner
   with local secret generation and configuration validation, and a real
   Node wallet integration (HD key derivation, `WalletFacade`, a
   `WalletProvider`/`MidnightProvider` adapter with no serialization gap)
-  are implemented and exercised locally, including a genuine attempted
-  sync connection to the Preprod indexer (which failed only because this
-  development environment has no network route to Midnight's Preprod
-  infrastructure — not a code defect).
+  are implemented and exercised locally, and were used to deploy the
+  contract to Midnight Preprod (see below).
 - The frontend connects a browser wallet and exercises one real contract
   operation, `registerAsset`, end to end against the typed API.
 
@@ -164,13 +163,6 @@ infrastructure):**
   `retireAsset`, `addCredential`, `verifyCredential`, `revokeCredential`,
   `addProvenanceEvent`, `recordRiskAssessment`) into the web application;
   only `registerAsset` is currently exposed in the UI.
-- Resolving `WalletProviderAdapter.balanceTx`/`.submitTx`
-  (`frontend/src/lib/wallet/walletProviderAdapter.ts`): the Midnight
-  DApp Connector API does not specify the wire encoding between this
-  project's transaction types and a connected browser wallet's
-  string-based format, so both methods currently throw a clearly labeled
-  error rather than guess. This is specific to the browser wallet path —
-  the Node wallet integration does not have this gap.
 - The off-chain risk-intelligence service itself (the analysis that would
   produce the data behind `recordRiskAssessment`) — not implemented in
   this repository; only the on-chain reference mechanism exists.
@@ -180,23 +172,30 @@ infrastructure):**
 **Requires Preprod verification (cannot be confirmed from this
 environment):**
 
-- An actual contract deployment to Preprod — none has occurred; no
-  contract address exists, and the README's "Contract Address" section
-  is intentionally unfilled.
+- The Asset Passport contract is deployed to Midnight Preprod at
+  `ceec2dd543e6f33e18c1c17e57f7893c31fafe784262ffa7d0bc100ef198f229`
+  (deployment transaction
+  `005b45d95c33109ad668b6d16e08ddc9478dd64dc83bd63a62f58d7abf3a95fe3e`).
+  The deployment command reported success; the circuits other than the
+  deployment itself have not been exercised against it.
 - A full `registerAsset` submission against a live network.
 - The Node wallet's real connection, sync, balancing, and submission
-  against live Preprod infrastructure with a funded wallet — blocked
-  both by the lack of a network route from this development environment
-  and by the deployment wallet not yet holding real Preprod funds.
+  against live Preprod infrastructure with a funded wallet were exercised
+  by the contract deployment. Other transaction types have not been
+  submitted from it.
 - Connecting a real browser wallet extension and confirming connection,
   address display, and network-mismatch handling behave as expected
   against that wallet.
+- The browser wallet path, `WalletProviderAdapter.balanceTx`/`.submitTx`
+  (`frontend/src/lib/wallet/walletProviderAdapter.ts`), is implemented:
+  the transaction is exchanged with the wallet as the hex encoding of its
+  own serialization, following the transaction types documented by the
+  installed DApp Connector API, and the transaction identifier is read
+  from the submitted transaction. It is covered by unit tests that use a
+  stand-in wallet API; it has not been run against a live browser wallet.
 - Running the CI workflow (`.github/workflows/ci.yml`) on real GitHub
   Actions infrastructure — it is structurally valid but has never been
   pushed or executed there.
-- Per earlier project notes (not independently re-verified this
-  session): DUST was reported as still maturing on Preprod at the time,
-  which would need reconfirming before relying on it for deployment fees.
 
 **Would be required before a production/Mainnet deployment**, beyond
 everything above:
@@ -217,6 +216,9 @@ everything above:
 - Operational readiness: monitoring, key-management procedures for the
   admin/oracle roles, and an incident-response plan.
 
-**This project has not been deployed anywhere, and no transaction has
-ever been submitted to a live network.** Any statement to the contrary
-should be treated as false until independently verified.
+**The Asset Passport contract is deployed to Midnight Preprod, a test
+network, at address
+`ceec2dd543e6f33e18c1c17e57f7893c31fafe784262ffa7d0bc100ef198f229`.**
+It has not been deployed to Mainnet. Preprod deployment does not imply
+production readiness, and the items above remain required before any
+Mainnet deployment.
