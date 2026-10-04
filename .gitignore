@@ -5,9 +5,11 @@ node_modules/
 dist/
 build/
 
-# Compact compiler output (generated locally by `compact compile`)
+# Compact compiler output: other generated output stays ignored, but the
+# Asset Passport artifacts (circuits, keys, zkir) are tracked.
 contract/managed/*
 !contract/managed/.gitkeep
+!contract/managed/asset-passport/
 
 # Environment / secrets
 .env
@@ -18,6 +20,13 @@ contract/managed/*
 # Locally generated deployment secret material (admin/oracle keys) - never
 # committed, and safe to delete (a new deployment will regenerate it).
 contract/.deployment-secrets/
+
+# Local deployment diagnostics / wallet state - never committed
+contract/midnight-level-db/
+contract/src/deploy/diagnoseAddress.ts
+contract/src/deploy/diagnoseDust.ts
+contract/src/deploy/diagnoseNight.ts
+contract/src/deploy/registerNightForDust.ts
 
 # Logs
 *.log
